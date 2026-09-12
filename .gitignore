@@ -1,0 +1,13 @@
+build/
+dist/
+__pycache__/
+.DS_Store
+*.ipa
+*.mobileprovision
+*.p12
+*.pem
+*.cer
+*.o
+*.dSYM/
+KakaoTalk
+Payload/

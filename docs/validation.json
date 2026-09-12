@@ -1,0 +1,51 @@
+{
+  "version": "2.3.1",
+  "binary_sha256": "0711a5803c14871300f5790f6392d1109160c5c3492520104e88bf959e30fcc4",
+  "adhoc_signature_verified": true,
+  "personal_certificate_included": false,
+  "jailbreak_device_test": "not performed",
+  "package_structure_filter_and_same_dylib_verified": true,
+  "packages": [
+    {
+      "file": "com.nogadamachine.ginppai.kakaocustomizer_2.3.1_iphoneos-arm.deb",
+      "architecture": "iphoneos-arm",
+      "sha256": "af38cb840e8f3a99846fb72459ea447585d3372091140ad51e0bdab5d6efbf87"
+    },
+    {
+      "file": "com.nogadamachine.ginppai.kakaocustomizer_2.3.1_iphoneos-arm64.deb",
+      "architecture": "iphoneos-arm64",
+      "sha256": "56ae873681a12a65938066d24b84b7cc55fc044a7e22acb7ef55bbec510e4baa"
+    }
+  ],
+  "ipa_preparation_static_validation": {
+    "two_dylib_injections_verified": true,
+    "country_patch_matches_previously_tested_binary": true,
+    "sideStore_direct_install_device_test": "not performed",
+    "input_original_unchanged": true
+  },
+  "public_binary_device_run": "not separately tested; original installed implementation was used in LiveContainer",
+  "tool_cases_passed": 6,
+  "resolver_cases_passed": 9,
+  "basis": "KakaoCustomizer 2.3.0, device-tested on iOS 26.1 / KakaoTalk 26.7.3 / LiveContainer; 2.3.1 adds name and packaging compatibility",
+  "media_device_verification": {
+    "current_photo": [
+      2377,
+      2380
+    ],
+    "history_photo": [
+      1920,
+      2560
+    ],
+    "background_photo": [
+      1814,
+      2419
+    ],
+    "video": [
+      1080,
+      2356
+    ],
+    "video_seconds": 13.934,
+    "original_file_byte_identity": true,
+    "video_playback_in_photos": true
+  }
+}

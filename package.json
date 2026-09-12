@@ -1,0 +1,10 @@
+{
+  "name": "Ginppai-Kakao-Customizer",
+  "id": "com.nogadamachine.ginppai.kakaocustomizer",
+  "version": "2.3.1",
+  "dylib": "GinppaiKakaoCustomizer.dylib",
+  "minOS": "17.0",
+  "description": "KakaoTalk 26.7.3 UI customization and original profile media saving.",
+  "homepage": "https://github.com/nogadamachine/Ginppai-Kakao-Customizer",
+  "depiction": "https://nogadamachine.github.io/Ginppai-Repo/depictions/customizer.html"
+}
