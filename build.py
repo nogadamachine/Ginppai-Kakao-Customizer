@@ -17,7 +17,7 @@ subprocess.run(['xcrun', 'clang', '-arch', 'arm64', '-isysroot', SDK, '-miphoneo
                 '-Wno-unused-function', '-Wno-deprecated-declarations', '-c', str(ROOT/'src/KakaoCustomizer.m'),
                 '-o', str(BUILD/'KakaoCustomizer.o')], check=True, env=ENV)
 output = BUILD/'GinppaiKakaoCustomizer.dylib'
-frameworks = ['UIKit', 'Foundation', 'CoreGraphics', 'CoreMedia', 'Photos', 'AVFoundation', 'ImageIO', 'UniformTypeIdentifiers']
+frameworks = ['UIKit', 'Foundation', 'CoreGraphics', 'QuartzCore', 'CoreMedia', 'Photos', 'AVFoundation', 'ImageIO', 'UniformTypeIdentifiers']
 subprocess.run(['xcrun', 'swiftc', *target, '-emit-library', str(BUILD/'MediaResolver.o'), str(BUILD/'KakaoCustomizer.o'),
                 *[arg for f in frameworks for arg in ['-framework', f]], '-Xlinker', '-install_name', '-Xlinker',
                 '@rpath/GinppaiKakaoCustomizer.dylib', '-o', str(output)], check=True, env=ENV)

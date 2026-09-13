@@ -1,4 +1,5 @@
 #import <UIKit/UIKit.h>
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
 
@@ -15,7 +16,7 @@ static void saveReport(void) {
     pendingWrite = YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         pendingWrite = NO;
-        NSDictionary *report = @{ @"version": @"2.3.1", @"target": @"26.7.3",
+        NSDictionary *report = @{ @"version": @"2.3.2", @"target": @"26.7.3",
             @"configuration": configurationReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
         NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil];
         NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/KakaoAdBlock-status.json"];
@@ -134,7 +135,7 @@ static BOOL storeOption(NSString *key,id value,UIViewController *host) {
     if(section==1)return @"통화 탭 숨김은 해외 화면에서 사용할 수 있습니다. 알림 배지는 하단 표시만 숨깁니다. 빠른 설정은 더보기 탭을 두 번 누르거나 길게 눌러 엽니다. 없는 시작 탭을 선택한 경우 친구 탭으로 시작합니다.";
     if(section==2)return countrySupport?@"화면 구성만 바뀌며 계정과 전화번호 국가는 유지됩니다. 여러 국가는 같은 해외 화면을 사용합니다. 중복 통화 탭은 자동으로 정리합니다.":@"현재 설치에서는 국가 전환 기능을 사용할 수 없습니다.";
     if(section==3)return @"변경값은 자동 저장됩니다. 위쪽 ‘적용 후 종료’를 누르고 카카오톡을 다시 실행해 주세요.";
-    if(section==4)return @"Ginppai-Kakao-Customizer 2.3.1 · 카카오톡 26.7.3\n만든이 · nogadamachine";
+    if(section==4)return @"Ginppai-Kakao-Customizer 2.3.2 · 카카오톡 26.7.3\n만든이 · nogadamachine";
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
@@ -656,7 +657,6 @@ static void installInitialOpenChatPreference(void) {
 @interface KCMediaResolver : NSObject
 + (NSDictionary *)resolve:(id)object contexts:(NSArray *)contexts;
 @end
-static const char profileSaveButtonKey;
 static UIViewController *profileHost(UIView *view) {
     for(UIResponder *r=view.nextResponder;r;r=r.nextResponder)if([r isKindOfClass:UIViewController.class])return (UIViewController *)r;
     return nil;
@@ -694,7 +694,7 @@ static NSArray *profileContexts(UIView *root) {
 static id profileMediaOwner(UIView *root) {
     return [root.superview isKindOfClass:UICollectionViewCell.class]?root.superview:profileHost(root);
 }
-@interface KCProfileTransfer : NSObject <NSURLSessionDownloadDelegate,UIDocumentPickerDelegate,UIAdaptivePresentationControllerDelegate>
+@interface KCProfileTransfer : NSObject <NSURLSessionDownloadDelegate>
 @property(nonatomic,weak) UIView *root;
 @property(nonatomic,strong) NSURL *remoteURL,*directory,*file;
 @property(nonatomic,strong) NSDictionary *resource,*metadata;
@@ -702,14 +702,12 @@ static id profileMediaOwner(UIView *root) {
 @property(nonatomic,strong) NSURLSessionDownloadTask *task;
 @property(nonatomic,strong) AVAssetExportSession *exporter;
 @property(nonatomic,strong) UIAlertController *progress;
-@property(nonatomic,strong) UIDocumentPickerViewController *picker;
-@property(nonatomic) BOOL video,exportToFiles,finished,handedOff,committing,failed;
+@property(nonatomic) BOOL video,finished,handedOff,committing,failed;
 @property(nonatomic) UIBackgroundTaskIdentifier backgroundTask;
 @property(nonatomic) NSTimeInterval lastProgress;
 @property(nonatomic) double minimumVideoPixels;
 - (void)start;
 - (void)fail:(NSString *)message;
-- (void)exportFile;
 @end
 static KCProfileTransfer *profileTransfer;
 @implementation KCProfileTransfer
@@ -738,7 +736,6 @@ static KCProfileTransfer *profileTransfer;
         UIViewController *host=profileHost(self.root);
         if(!host || host.presentedViewController){[self clean];return;}
         UIAlertController *alert=[UIAlertController alertControllerWithTitle:@"저장하지 못했습니다" message:message preferredStyle:UIAlertControllerStyleAlert];
-        if(self.file && !self.exportToFiles && self.metadata)[alert addAction:[UIAlertAction actionWithTitle:@"파일에 저장" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){self.exportToFiles=YES;[self exportFile];}]];
         [alert addAction:[UIAlertAction actionWithTitle:@"확인" style:UIAlertActionStyleCancel handler:^(UIAlertAction *a){[self clean];}]];
         [host presentViewController:alert animated:YES completion:nil];
     }];
@@ -905,7 +902,7 @@ static KCProfileTransfer *profileTransfer;
     if(![NSFileManager.defaultManager moveItemAtURL:self.file toURL:destination error:&error]){[self fail:@"저장 파일을 준비하지 못했습니다."];return;}
     self.file=destination;NSNumber *bytes=nil;[destination getResourceValue:&bytes forKey:NSURLFileSizeKey error:nil];
     NSMutableDictionary *info=[metadata mutableCopy];info[@"bytes"]=bytes?:@0;info[@"originalField"]=self.resource[@"originalField"]?:@NO;info[@"reencoded"]=@NO;self.metadata=info;
-    if(self.exportToFiles)[self dismissProgress:^{[self exportFile];}];else [self savePhotos];
+    [self savePhotos];
 }
 - (void)recordSuccess:(NSString *)destination {
     NSMutableDictionary *info=[self.metadata mutableCopy];info[@"destination"]=destination;
@@ -917,7 +914,7 @@ static KCProfileTransfer *profileTransfer;
     self.progress.message=@"사진 앱에 저장하고 있습니다…";
     void (^save)(PHAuthorizationStatus)=^(PHAuthorizationStatus status){dispatch_async(dispatch_get_main_queue(),^{
         if(self.finished)return;
-        if(status!=PHAuthorizationStatusAuthorized && status!=PHAuthorizationStatusLimited){[self fail:@"사진 앱에 추가할 권한이 없습니다. 설정에서 허용하거나 ‘파일에 저장’을 이용해 주세요."];return;}
+        if(status!=PHAuthorizationStatusAuthorized && status!=PHAuthorizationStatusLimited){[self fail:@"사진 앱에 추가할 권한이 없습니다. iOS 설정에서 사진 추가 권한을 허용한 뒤 다시 시도해 주세요."];return;}
         self.committing=YES;self.progress.actions.firstObject.enabled=NO;
         [PHPhotoLibrary.sharedPhotoLibrary performChanges:^{
             PHAssetCreationRequest *request=[PHAssetCreationRequest creationRequestForAsset];
@@ -925,7 +922,7 @@ static KCProfileTransfer *profileTransfer;
             [request addResourceWithType:self.video?PHAssetResourceTypeVideo:PHAssetResourceTypePhoto fileURL:self.file options:options];
         } completionHandler:^(BOOL success,NSError *error){dispatch_async(dispatch_get_main_queue(),^{
             self.committing=NO;if(self.finished)return;
-            if(!success){[self fail:@"사진 앱에서 파일을 저장하지 못했습니다. ‘파일에 저장’으로 원본 파일을 보관할 수 있습니다."];return;}
+            if(!success){[self fail:@"사진 앱에서 저장하지 못했습니다. 사진 추가 권한과 저장 공간을 확인한 뒤 다시 시도해 주세요."];return;}
             [self recordSuccess:@"photos"];
             [self dismissProgress:^{profileToast(self.root,self.video?@"원본 영상을 사진 앱에 저장했습니다":@"원본 사진을 사진 앱에 저장했습니다");[self clean];}];
         });}];
@@ -933,49 +930,127 @@ static KCProfileTransfer *profileTransfer;
     PHAuthorizationStatus status=[PHPhotoLibrary authorizationStatusForAccessLevel:PHAccessLevelAddOnly];
     if(status==PHAuthorizationStatusNotDetermined)[PHPhotoLibrary requestAuthorizationForAccessLevel:PHAccessLevelAddOnly handler:save];else save(status);
 }
-- (void)exportFile {
-    if(self.finished)return;UIViewController *host=profileHost(self.root);
-    if(!host){[self clean];return;}
-    if([host.presentedViewController isKindOfClass:UIAlertController.class]){[host dismissViewControllerAnimated:YES completion:^{[self exportFile];}];return;}
-    if(host.presentedViewController){[self clean];return;}
-    [self endBackgroundTask];
-    UIDocumentPickerViewController *picker=[[UIDocumentPickerViewController alloc] initForExportingURLs:@[self.file] asCopy:YES];picker.delegate=self;
-    self.picker=picker;picker.presentationController.delegate=self;
-    if(picker.popoverPresentationController){picker.popoverPresentationController.sourceView=self.root;picker.popoverPresentationController.sourceRect=self.root.bounds;}
-    [host presentViewController:picker animated:YES completion:nil];
-}
-- (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    [self recordSuccess:@"files"];profileToast(self.root,@"선택한 위치에 원본을 저장했습니다");[self clean];
-}
-- (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller { [self clean]; }
-- (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController { [self clean]; }
 @end
-static void saveProfileOriginal(UIView *root,BOOL files) {
+static void saveProfileOriginal(UIView *root) {
     if(!root.window)return;
-    if(profileTransfer && !profileTransfer.committing && (!profileTransfer.root.window || (profileTransfer.task.state!=NSURLSessionTaskStateRunning && !profileTransfer.progress.presentingViewController && !profileTransfer.picker.presentingViewController))) [profileTransfer cancel];
+    if(profileTransfer && !profileTransfer.committing && (!profileTransfer.root.window || (profileTransfer.task.state!=NSURLSessionTaskStateRunning && !profileTransfer.progress.presentingViewController))) [profileTransfer cancel];
     if(profileTransfer){profileToast(root,@"진행 중인 원본 저장을 완료해 주세요");return;}
     NSDictionary *resource=[KCMediaResolver resolve:profileMediaOwner(root) contexts:profileContexts(root)];NSURL *url=resource[@"url"];
     if(!url){profileNotice(root,@"원본 주소를 찾지 못했습니다",@"사진·영상이 완전히 열린 뒤 다시 눌러 주세요. 원본이 없는 경우 화면용 이미지로 대신 저장하지 않습니다.");return;}
     KCProfileTransfer *transfer=[KCProfileTransfer new];transfer.root=root;transfer.resource=resource;transfer.remoteURL=url;
-    transfer.video=[resource[@"video"] boolValue];transfer.exportToFiles=files;profileTransfer=transfer;[transfer start];
+    transfer.video=[resource[@"video"] boolValue];profileTransfer=transfer;[transfer start];
 }
-static UIButton *profileSaveButton(UIView *root) {
-    UIButton *existing=objc_getAssociatedObject(root,&profileSaveButtonKey);if(existing)return existing;
-    UIButtonConfiguration *configuration=[UIButtonConfiguration filledButtonConfiguration];configuration.image=[UIImage systemImageNamed:@"square.and.arrow.down"];
-    configuration.baseBackgroundColor=[UIColor.blackColor colorWithAlphaComponent:0.6];configuration.baseForegroundColor=UIColor.whiteColor;configuration.cornerStyle=UIButtonConfigurationCornerStyleCapsule;
-    UIButton *button=[UIButton buttonWithConfiguration:configuration primaryAction:nil];button.accessibilityLabel=@"프로필 원본 저장";button.accessibilityHint=@"현재 사진 또는 영상의 원본 파일을 저장합니다";
-    __weak UIView *weakRoot=root;NSMutableArray *actions=[NSMutableArray array];
-    for(NSNumber *files in @[@NO,@YES]) {
-        BOOL export=files.boolValue;
-        [actions addObject:[UIAction actionWithTitle:export?@"원본을 파일에 저장":@"원본을 사진 앱에 저장" image:[UIImage systemImageNamed:export?@"folder":@"photo.on.rectangle"] identifier:nil handler:^(UIAction *action){saveProfileOriginal(weakRoot,export);}]];
+
+static UIViewController *profileFrontController(UIWindow *window) {
+    UIViewController *controller=window.rootViewController;
+    for(NSUInteger depth=0;controller && depth<24;depth++) {
+        if(controller.presentedViewController && !controller.presentedViewController.isBeingDismissed)controller=controller.presentedViewController;
+        else if([controller isKindOfClass:UINavigationController.class])controller=((UINavigationController *)controller).visibleViewController;
+        else if([controller isKindOfClass:UITabBarController.class])controller=((UITabBarController *)controller).selectedViewController;
+        else break;
     }
-    button.menu=[UIMenu menuWithTitle:@"사진·영상 원본 저장" children:actions];button.showsMenuAsPrimaryAction=YES;
-    [root addSubview:button];objc_setAssociatedObject(root,&profileSaveButtonKey,button,OBJC_ASSOCIATION_RETAIN_NONATOMIC);event(@"profile:save-button-added");return button;
+    return controller;
 }
+static BOOL profileHostIsFront(UIViewController *host,UIViewController *front) {
+    if(!host || !front || host.isBeingDismissed || host.isMovingFromParentViewController)return NO;
+    for(UIViewController *current=host;current;current=current.parentViewController)if(current==front)return YES;
+    return NO;
+}
+
+// Keep one small control in the app window, outside the moving media cells.
+// Weak candidates are rescored while paging so a reused/offscreen cell cannot
+// remain the target. No full-screen overlay intercepts the viewer's gestures.
+@interface KCProfileSaveOverlay : NSObject
+@property(nonatomic,weak) UIWindow *window;
+@property(nonatomic,weak) UIView *selectedRoot;
+@property(nonatomic,strong) NSHashTable<UIView *> *mediaRoots;
+@property(nonatomic,strong) UIButton *button;
+@property(nonatomic,strong) CADisplayLink *displayLink;
+- (void)track:(UIView *)root;
+- (void)refresh;
+@end
+@implementation KCProfileSaveOverlay
+- (instancetype)init {
+    if((self=[super init])) {
+        _mediaRoots=[NSHashTable weakObjectsHashTable];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(suspend) name:UIApplicationWillResignActiveNotification object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(resume) name:UIApplicationDidBecomeActiveNotification object:nil];
+    }
+    return self;
+}
+- (void)dealloc { [self.displayLink invalidate];[NSNotificationCenter.defaultCenter removeObserver:self]; }
+- (void)suspend { self.displayLink.paused=YES;self.button.hidden=YES; }
+- (void)resume { self.displayLink.paused=NO;[self refresh]; }
+- (void)track:(UIView *)root {
+    [self.mediaRoots addObject:root];
+    if(!self.displayLink) {
+        self.displayLink=[CADisplayLink displayLinkWithTarget:self selector:@selector(tick:)];
+        self.displayLink.preferredFramesPerSecond=15;
+        [self.displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
+    }
+    [self refresh];
+}
+- (void)tick:(CADisplayLink *)link { [self refresh]; }
+- (void)save {
+    [self refresh];UIView *root=self.selectedRoot;
+    if(root && !self.button.hidden)saveProfileOriginal(root);
+}
+- (void)refresh {
+    UIWindow *window=self.window;
+    if(!window){[self.button removeFromSuperview];[self.displayLink invalidate];self.displayLink=nil;return;}
+    UIViewController *front=profileFrontController(window);
+    UIView *selected=nil;CGFloat bestScore=-CGFLOAT_MAX;BOOL attached=NO;
+    CGRect viewport=window.bounds;
+    for(UIView *root in self.mediaRoots.allObjects) {
+        if(root.window!=window)continue;attached=YES;
+        if(!profileHostIsFront(profileHost(root),front))continue;
+        CGRect visible=[root convertRect:root.bounds toView:window];
+        BOOL hidden=NO;
+        for(UIView *ancestor=root;ancestor && ancestor!=window;ancestor=ancestor.superview) {
+            if(ancestor.hidden || ancestor.alpha<0.01){hidden=YES;break;}
+            if(ancestor.clipsToBounds)visible=CGRectIntersection(visible,[ancestor convertRect:ancestor.bounds toView:window]);
+        }
+        if(hidden)continue;
+        visible=CGRectIntersection(visible,viewport);
+        if(CGRectIsNull(visible) || CGRectIsEmpty(visible))continue;
+        CGFloat area=visible.size.width*visible.size.height;
+        if(area<viewport.size.width*viewport.size.height*0.2)continue;
+        CGFloat distance=fabs(CGRectGetMidY(visible)-CGRectGetMidY(viewport))+fabs(CGRectGetMidX(visible)-CGRectGetMidX(viewport));
+        CGFloat score=area-distance;
+        if(score>bestScore){selected=root;bestScore=score;}
+    }
+    self.selectedRoot=selected;
+    if(!attached) {
+        [self.button removeFromSuperview];[self.displayLink invalidate];self.displayLink=nil;return;
+    }
+    if(!selected || UIApplication.sharedApplication.applicationState!=UIApplicationStateActive || !option(@"profilePhotoSave")) {
+        self.button.hidden=YES;return;
+    }
+    if(!self.button) {
+        UIButtonConfiguration *configuration=[UIButtonConfiguration filledButtonConfiguration];
+        configuration.image=[UIImage systemImageNamed:@"square.and.arrow.down"];
+        configuration.baseBackgroundColor=[UIColor.blackColor colorWithAlphaComponent:0.65];configuration.baseForegroundColor=UIColor.whiteColor;
+        configuration.cornerStyle=UIButtonConfigurationCornerStyleCapsule;
+        self.button=[UIButton buttonWithConfiguration:configuration primaryAction:nil];
+        self.button.accessibilityLabel=@"프로필 원본을 사진 앱에 저장";
+        self.button.accessibilityHint=@"현재 보고 있는 사진 또는 영상을 바로 저장합니다";
+        [self.button addTarget:self action:@selector(save) forControlEvents:UIControlEventTouchUpInside];
+        event(@"profile:save-button-added");
+    }
+    if(self.button.superview!=window)[window addSubview:self.button];
+    // Below the native close/sound controls; independent of content offset.
+    self.button.frame=CGRectMake(CGRectGetMaxX(viewport)-window.safeAreaInsets.right-60,CGRectGetMinY(viewport)+window.safeAreaInsets.top+60,44,44);
+    self.button.hidden=NO;self.button.alpha=1;
+    if(window.subviews.lastObject!=self.button)[window bringSubviewToFront:self.button];
+}
+@end
 static void placeProfileSaveButton(UIView *root,BOOL cell) {
-    if(!option(@"profilePhotoSave") || !root.window)return;UIButton *button=profileSaveButton(root);
-    button.frame=CGRectMake(MAX(8,root.bounds.size.width-60),cell?72:MAX(8,root.safeAreaInsets.top+8),44,44);
-    button.autoresizingMask=UIViewAutoresizingFlexibleLeftMargin|UIViewAutoresizingFlexibleBottomMargin;[root bringSubviewToFront:button];
+    if(!option(@"profilePhotoSave") || !root.window)return;
+    static NSMapTable<UIWindow *,KCProfileSaveOverlay *> *overlays;
+    if(!overlays)overlays=[NSMapTable weakToStrongObjectsMapTable];
+    KCProfileSaveOverlay *overlay=[overlays objectForKey:root.window];
+    if(!overlay){overlay=[KCProfileSaveOverlay new];overlay.window=root.window;[overlays setObject:overlay forKey:root.window];}
+    [overlay track:root];
 }
 static void installProfileDownload(void) {
     if(!option(@"profilePhotoSave"))return;
@@ -1028,6 +1103,6 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-        NSLog(@"[Ginppai-Kakao-Customizer] 2.3.1 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
+        NSLog(@"[Ginppai-Kakao-Customizer] 2.3.2 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
     }
 }

@@ -1,51 +1,53 @@
 {
-  "version": "2.3.1",
-  "binary_sha256": "0711a5803c14871300f5790f6392d1109160c5c3492520104e88bf959e30fcc4",
+  "version": "2.3.2",
+  "binary_sha256": "c04c698748e4d8454cb0f5a7bc4130d476f943fee033d5b6aeba86d018cf33fc",
+  "installed_code_sections_match_release": true,
   "adhoc_signature_verified": true,
   "personal_certificate_included": false,
-  "jailbreak_device_test": "not performed",
-  "package_structure_filter_and_same_dylib_verified": true,
-  "packages": [
-    {
-      "file": "com.nogadamachine.ginppai.kakaocustomizer_2.3.1_iphoneos-arm.deb",
-      "architecture": "iphoneos-arm",
-      "sha256": "af38cb840e8f3a99846fb72459ea447585d3372091140ad51e0bdab5d6efbf87"
-    },
-    {
-      "file": "com.nogadamachine.ginppai.kakaocustomizer_2.3.1_iphoneos-arm64.deb",
-      "architecture": "iphoneos-arm64",
-      "sha256": "56ae873681a12a65938066d24b84b7cc55fc044a7e22acb7ef55bbec510e4baa"
-    }
-  ],
-  "ipa_preparation_static_validation": {
-    "two_dylib_injections_verified": true,
-    "country_patch_matches_previously_tested_binary": true,
-    "sideStore_direct_install_device_test": "not performed",
-    "input_original_unchanged": true
-  },
-  "public_binary_device_run": "not separately tested; original installed implementation was used in LiveContainer",
+  "settings_unchanged": true,
+  "original_ipad_binary_unchanged": true,
+  "files_export_removed_from_binary": true,
   "tool_cases_passed": 6,
   "resolver_cases_passed": 9,
-  "basis": "KakaoCustomizer 2.3.0, device-tested on iOS 26.1 / KakaoTalk 26.7.3 / LiveContainer; 2.3.1 adds name and packaging compatibility",
-  "media_device_verification": {
-    "current_photo": [
-      2377,
-      2380
-    ],
-    "history_photo": [
-      1920,
-      2560
-    ],
-    "background_photo": [
-      1814,
-      2419
-    ],
-    "video": [
-      1080,
-      2356
-    ],
-    "video_seconds": 13.934,
-    "original_file_byte_identity": true,
-    "video_playback_in_photos": true
-  }
+  "background_photo_direct_save": {
+    "height": 2560,
+    "frames": 1,
+    "destination": "photos",
+    "width": 1920,
+    "bytes": 708130,
+    "reencoded": false,
+    "originalField": true,
+    "kind": "photo"
+  },
+  "save_tap_opens_download_without_destination_menu": true,
+  "history_photo_direct_save_after_scroll": {
+    "height": 2176,
+    "frames": 1,
+    "destination": "photos",
+    "width": 1554,
+    "bytes": 1090940,
+    "reencoded": false,
+    "originalField": true,
+    "kind": "photo"
+  },
+  "button_fixed_during_vertical_content_movement": true,
+  "button_hidden_after_viewer_dismissal": true,
+  "next_selected_history_photo_direct_save": {
+    "height": 2560,
+    "frames": 1,
+    "destination": "photos",
+    "width": 1967,
+    "bytes": 723279,
+    "reencoded": false,
+    "originalField": false,
+    "kind": "photo"
+  },
+  "public_binary_device_run": "passed: 2.3.2 on iOS 26.1, KakaoTalk 26.7.3, LiveContainer",
+  "jailbreak_device_test": "not performed",
+  "sidestore_direct_install_device_test": "not performed",
+  "real_hls_profile_test": "not performed",
+  "new_video_save_test": "not repeated in 2.3.2; MP4 saving and Photos playback verified in 2.3.0; resolver/download code unchanged",
+  "vertical_paging_scope": "Observed fixed button during vertical photo movement; saved afterward and separately opened/saved a different history photo. Did not verify every paging gesture.",
+  "three_saved_photos_visible_in_photos_library": true,
+  "package_structure_filter_and_same_dylib_verified": true
 }
