@@ -92,6 +92,16 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         check(!KCTrackerPolicy.blocksShareLog(shareEndpoint,endpoint:nil), "Unavailable native endpoint never enables a broad filter")
         check(!KCTrackerPolicy.blocksShareLog(shareEndpoint,endpoint:URL(string:"https://example.test/ios/talk/share")), "Reject an unexpected native getter result")
 
+        let sectionType = "FriendsFeedPresentation.FriendsListDataSource.SectionType"
+        func sections(_ names: [String]) -> [(type: String, name: String)] { names.map { (sectionType, $0) } }
+        check(KCLayoutPolicy.specialFriendSectionIndex(sections(["updateProfile", "specialFriend", "birthdayFriend", "favoriteFriend", "friend"])) == 1, "Only the special-friend promotion section is selected")
+        check(KCLayoutPolicy.specialFriendSectionIndex(sections(["friend", "specialFriend"])) == 1, "Promotion detection is independent of section position")
+        check(KCLayoutPolicy.specialFriendSectionIndex(sections(["specialFriend"])) == 0, "An interim promotion-only snapshot can become empty")
+        check(KCLayoutPolicy.specialFriendSectionIndex(sections(["birthdayFriend", "friend"])) == nil, "Birthday and ordinary friends remain visible")
+        check(KCLayoutPolicy.specialFriendSectionIndex(sections(["specialFriend", "specialFriend"])) == nil, "Ambiguous duplicate promotion identifiers are preserved")
+        check(KCLayoutPolicy.specialFriendSectionIndex([(sectionType, "specialFriend"), ("Other.SectionType", "friend")]) == nil, "Mixed or foreign section models are not filtered")
+        check(KCLayoutPolicy.specialFriendSectionIndex(sections(["specialFriend", "futureSection"])) == 0, "New non-promotion sections remain untouched")
+        check(KCLayoutPolicy.specialFriendSectionIndex([]) == nil && KCLayoutPolicy.specialFriendSectionIndex(sections(Array(repeating: "friend", count: 33))) == nil, "Empty and oversized section sets are preserved")
         let chipType="FriendsFeedPresentation.FriendsTabHeaderView.(unknown context at $1234).ChipItem"
         check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"list")==0, "Identify the native friend list without translated labels")
         check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"feed")==1, "Identify the native feed role")

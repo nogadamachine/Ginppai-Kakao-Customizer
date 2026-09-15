@@ -2,7 +2,7 @@
 
 카카오톡을 내가 쓰는 방식에 맞춥니다. 광고와 탭을 정리하고, 메시지를 살펴보고, 프로필의 원본 사진과 영상을 저장할 수 있습니다.
 
-**nogadamachine 제작** / **3.0.0-dev.3 개발판** / **KakaoTalk 26.7.3 전용**
+**nogadamachine 제작** / **3.0.0-dev.4 개발판** / **KakaoTalk 26.7.3 전용**
 
 [개발자 인스타그램](https://www.instagram.com/nogadamachine/) / [긴빠이 Repo](https://nogadamachine.github.io/Ginppai-Repo/) / [다운로드](https://github.com/nogadamachine/Ginppai-Kakao-Customizer/releases) / [설치 안내](docs/INSTALL.md)
 
@@ -22,7 +22,7 @@
 
 옵션은 자동 저장됩니다. 각 화면 위의 **적용 후 종료**를 누른 뒤 카카오톡을 다시 실행해 주세요. 지원되지 않는 옵션은 이유와 함께 회색으로 표시합니다. 설정 첫 화면에는 메시지 보관함과 개발자 인스타그램, 긴빠이 Repo 바로가기가 있습니다.
 
-3.0.0-dev.3에서는 **더보기** 설정을 따로 마련했습니다. 페이, 카카오나우, 날씨와 서비스 영역을 골라 숨길 수 있으며, 광고를 숨긴 자리에 남던 큰 빈 공간도 정리합니다. 새 표시 옵션은 기본적으로 꺼져 있습니다.
+3.0.0-dev.4에서는 **광고 숨김**을 켜면 친구 목록의 **특별한 친구** 프로모션 영역도 제외합니다. 생일 친구, 즐겨찾기와 일반 친구는 유지합니다. 더보기의 페이, 카카오나우, 날씨와 서비스 영역별 설정도 계속 사용할 수 있습니다.
 
 ## 개발판 확인 범위
 
@@ -71,7 +71,7 @@ DEB/DYLIB만 원래 앱에 설치하면 국가 선택이 비활성화됩니다. 
 - `src/KakaoCustomizer.m`: 광고 / 탭 / 다운로드 및 런타임 연결.
 - `src/CustomizationSettings.inc`: 기능별 설정 화면과 개발자 링크.
 - `src/MoreTabRendering.swift`: 더보기 영역별 표시와 광고 자리 정리.
-- `src/FriendList.inc`: 친구 화면의 소식 항목 제거와 목록 선택 유지.
+- `src/FriendList.inc`: 친구 화면의 소식과 특별한 친구 프로모션 제거, 목록 선택 유지.
 - `src/MessageCore.swift`: 메시지 정보 / 읽음 위치 / 기록과 전송 정책.
 - `src/MediaResolver.swift`: 현재 선택한 미디어의 원본 주소 판별.
 - `src/ResolverTests.swift`: 잘못된 사진 선택, 영상/정지사진 혼동, URL 쿼리 변경 방지 검증.

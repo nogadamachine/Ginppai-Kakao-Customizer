@@ -285,7 +285,7 @@
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/ad/DisableFriendListsAdPatch.kt"
       ],
       "status": "partial-existing",
-      "assessment": "기존 FriendFeedAdLoader와 BizBoard/GlobalBanner 차단이 대응한다. 친구 영역의 모든 지역별 광고 경로를 이번 개발판에서 다시 검증하지 않았다."
+      "assessment": "기존 FriendFeedAdLoader와 BizBoard/GlobalBanner 차단에 더해, 광고 숨김 옵션으로 특별한 친구 프로모션 섹션을 제외한다. 아이폰에서 업데이트 프로필, 생일 친구, 즐겨찾기와 일반 친구가 유지되는 것을 확인했다. 모든 지역별 광고 경로의 동등성은 미확인이다."
     },
     {
       "number": 29,

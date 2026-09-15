@@ -11,6 +11,21 @@ static NSArray *ginppaiFriendItems(id snapshot) {
     if(![items isKindOfClass:NSArray.class] || [items count]<1 || [items count]>2 || ginppaiFriendListIndex(items)<0)return nil;
     return items;
 }
+static id ginppaiFriendPromotionSnapshot(id snapshot) {
+    if(!option(@"hideAds") || !ginppaiNativeBuildVerified || ![snapshot respondsToSelector:@selector(sectionIdentifiers)] ||
+       ![snapshot respondsToSelector:@selector(copyWithZone:)] || ![snapshot respondsToSelector:@selector(deleteSectionsWithIdentifiers:)])return snapshot;
+    int64_t count=ginppaiInt(snapshot,@"numberOfSections");if(count<1 || count>32)return snapshot;
+    NSArray *sections=((id(*)(id,SEL))objc_msgSend)(snapshot,@selector(sectionIdentifiers));
+    if(![sections isKindOfClass:NSArray.class] || sections.count!=(NSUInteger)count)return snapshot;
+    NSInteger index=((NSInteger(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"specialFriendSectionIndex:"),sections);
+    if(index<0 || (NSUInteger)index>=sections.count)return snapshot;
+    id copy=[snapshot copy];if(copy==snapshot)return snapshot;
+    ((void(*)(id,SEL,id))objc_msgSend)(copy,@selector(deleteSectionsWithIdentifiers:),@[sections[index]]);
+    NSMutableArray *expected=[sections mutableCopy];[expected removeObjectAtIndex:index];
+    NSArray *remaining=((id(*)(id,SEL))objc_msgSend)(copy,@selector(sectionIdentifiers));
+    if(![remaining isEqualToArray:expected])return snapshot;
+    event(@"ginppai.friendPromotion.filtered");return copy;
+}
 static id ginppaiFriendSnapshot(id snapshot) {
     if(!option(@"hideFriendFeed") || !ginppaiNativeBuildVerified)return snapshot;
     NSArray *items=ginppaiFriendItems(snapshot);
@@ -97,17 +112,20 @@ static BOOL ginppaiFriendApplySignature(Method method) {
 }
 static void ginppaiInstallFriendList(void) {
     ginppaiCapabilities[@"hideFriendFeed"]=@NO;
+    ginppaiCapabilities[@"hideSpecialFriendPromo"]=@NO;
     Class header=NSClassFromString(@"FriendsFeedPresentation.FriendsTabHeaderView");
     Class source=NSClassFromString(@"__UIDiffableDataSource");
     SEL apply=NSSelectorFromString(@"_applyDifferencesFromSnapshot:animatingDifferences:completion:isOnApplyQueue:");
     Method method=class_getInstanceMethod(source,apply);
     if(!ginppaiNativeBuildVerified || !header || !ginppaiFriendApplySignature(method))return;
     ginppaiCapabilities[@"hideFriendFeed"]=@YES;
-    if(!option(@"hideFriendFeed"))return;
+    ginppaiCapabilities[@"hideSpecialFriendPromo"]=@YES;
+    if(!option(@"hideFriendFeed") && !option(@"hideAds"))return;
     IMP original=method_getImplementation(method);
     replace(source,apply,imp_implementationWithBlock(^(id self,id snapshot,BOOL animated,id completion,BOOL onQueue){
-        ((void(*)(id,SEL,id,BOOL,id,BOOL))original)(self,apply,ginppaiFriendSnapshot(snapshot),animated,completion,onQueue);
+        ((void(*)(id,SEL,id,BOOL,id,BOOL))original)(self,apply,ginppaiFriendSnapshot(ginppaiFriendPromotionSnapshot(snapshot)),animated,completion,onQueue);
     }),method_getTypeEncoding(method));
+    if(!option(@"hideFriendFeed"))return;
     for(NSString *name in @[@"didMoveToWindow",@"layoutSubviews"]) {
         SEL sel=NSSelectorFromString(name);Method m=class_getInstanceMethod(header,sel);if(!m)continue;IMP original=method_getImplementation(m);
         replace(header,sel,imp_implementationWithBlock(^(UIView *self){((void(*)(id,SEL))original)(self,sel);ginppaiRefreshFriendHeader(self);}),method_getTypeEncoding(m));

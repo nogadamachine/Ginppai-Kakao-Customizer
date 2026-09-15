@@ -33,7 +33,7 @@
 | 25 | Disable Collapse Button | 미구현 | 오픈채팅 목록의 접기/더보기용 잘림을 없앤다. 기존 재선택 후 맨 위 이동과 별도 기능이다. |
 | 26 | Disable Community Tab | 미구현 | 오픈채팅 목록의 커뮤니티 영역을 제외한다. 숏폼 탭 숨김과 별도 기능이며 미구현이다. |
 | 27 | Disable Friend Feed tab | 개발 중 | 친구 헤더의 소식 항목을 모델에서 제외하고 앱의 기본 선택 처리로 친구 목록을 유지한다. 아이폰에서 옵션 켜기와 끄기, 저장된 소식 상태에서 재실행, 하단 탭 반복 선택을 확인했다. 다른 iOS 버전 시험은 남았다. |
-| 28 | Disable Friend Lists ad | 일부 대응 | 기존 FriendFeedAdLoader와 BizBoard/GlobalBanner 차단이 대응한다. 친구 영역의 모든 지역별 광고 경로를 이번 개발판에서 다시 검증하지 않았다. |
+| 28 | Disable Friend Lists ad | 일부 대응 | 기존 FriendFeedAdLoader와 BizBoard/GlobalBanner 차단에 더해, 광고 숨김 옵션으로 특별한 친구 프로모션 섹션을 제외한다. 아이폰에서 업데이트 프로필, 생일 친구, 즐겨찾기와 일반 친구가 유지되는 것을 확인했다. 모든 지역별 광고 경로의 동등성은 미확인이다. |
 | 29 | Disable OpenChat feed ad | 일부 대응 | 공통 AdFit 차단이 일부 대응한다. 오픈채팅 피드의 요청과 렌더링 경로 전체는 미확인이다. |
 | 30 | Disable Pay banner ad | 미구현 | KakaoPay 배너 광고 로딩과 표시 차단. iOS Pay 배너만을 대상으로 한 연결 지점이 미확인이다. |
 | 31 | Disable S2Event | 미구현 | S2 이벤트의 보관과 전송을 중단한다. 일부 Tiara 주소 차단과 동일한 기능으로 계산하지 않는다. |

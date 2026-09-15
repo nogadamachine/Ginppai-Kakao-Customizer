@@ -20,7 +20,7 @@ static void saveReport(void) {
     pendingWrite = YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         pendingWrite = NO;
-        NSDictionary *report = @{ @"version": @"3.0.0-dev.3", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
+        NSDictionary *report = @{ @"version": @"3.0.0-dev.4", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
             @"configuration": configurationReport(), @"ginppai": ginppaiReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
         NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil];
         NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/KakaoAdBlock-status.json"];
@@ -1034,6 +1034,6 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.0-dev.3 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
+        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.0-dev.4 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
     }
 }

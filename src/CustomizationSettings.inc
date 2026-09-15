@@ -2,7 +2,7 @@
 static NSArray<NSDictionary *> *customizationGroups(void) {
     return @[
       @{@"title":@"화면",@"icon":@"rectangle.3.group",@"summary":@"광고와 하단 탭 정리",@"rows":@[
-        @[@"hideAds",@"광고 자리 비우기",@"지원되는 배너와 비즈보드의 로딩 및 표시를 막습니다."],
+        @[@"hideAds",@"광고 자리 비우기",@"지원되는 광고를 차단하고 친구 목록의 특별한 친구 프로모션 영역을 숨깁니다."],
         @[@"hideShortForm",@"숏폼 없이 사용",@"숏폼을 숨기고 오픈채팅 목록을 바로 엽니다."],
         @[@"preferOpenChat",@"오픈채팅 먼저 보기",@"지금 탭을 열 때 오픈채팅 목록부터 표시합니다."],
         @[@"hideShopping",@"쇼핑 탭 숨기기",@"하단 메뉴에서 쇼핑을 뺍니다."],
@@ -108,7 +108,7 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 - (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
     if(section==0)return @"필요한 기능만 골라 사용하세요. 변경값은 자동 저장되고, 적용 후 카카오톡을 다시 실행하면 반영됩니다.";
     if(section==1)return @"기능을 켠 뒤 기기에서 확인한 내용만 남습니다. 받기 전에 지워진 메시지는 복원할 수 없습니다.";
-    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.3\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
+    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.4\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {

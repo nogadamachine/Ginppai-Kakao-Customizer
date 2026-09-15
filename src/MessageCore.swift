@@ -178,6 +178,11 @@ enum KCTrackerPolicy {
 }
 
 enum KCLayoutPolicy {
+    static func specialFriendSectionIndex(_ sections: [(type: String, name: String)]) -> Int? {
+        guard (1...32).contains(sections.count), sections.allSatisfy({ $0.type == "FriendsFeedPresentation.FriendsListDataSource.SectionType" }) else { return nil }
+        let matches = sections.indices.filter { sections[$0].name == "specialFriend" }
+        return matches.count == 1 ? matches[0] : nil
+    }
     static func friendChipRole(typeName: String, caseName: String) -> Int {
         guard typeName.hasPrefix("FriendsFeedPresentation.FriendsTabHeaderView."),
               typeName.hasSuffix(".ChipItem") else { return -1 }
@@ -321,6 +326,18 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
     @objc public static func friendListIndex(_ objects: [Any]) -> Int {
         guard (1...2).contains(objects.count) else { return -1 }
         return KCLayoutPolicy.friendListIndex(objects.map(friendChipRole)) ?? -1
+    }
+    @objc public static func specialFriendSectionIndex(_ objects: [Any]) -> Int {
+        guard (1...32).contains(objects.count) else { return -1 }
+        var sections = [(type: String, name: String)]()
+        for object in objects {
+            let value = (object as? AnyHashable)?.base ?? object, mirror = Mirror(reflecting: (object as? AnyHashable)?.base ?? object)
+            guard mirror.displayStyle == .enum, mirror.children.isEmpty else { return -1 }
+            let name = String(reflecting: type(of: value))
+            guard name == "FriendsFeedPresentation.FriendsListDataSource.SectionType" else { return -1 }
+            sections.append((name, String(describing: value)))
+        }
+        return KCLayoutPolicy.specialFriendSectionIndex(sections) ?? -1
     }
     @objc public static func friendSelectedIndexPath(_ object: AnyObject) -> NSIndexPath? {
         guard String(reflecting: type(of: object)) == "FriendsFeedPresentation.FriendsTabHeaderView",
