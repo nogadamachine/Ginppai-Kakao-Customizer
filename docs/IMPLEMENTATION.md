@@ -51,14 +51,14 @@
 | 43 | Force enable emoticon plus feature | 미구현 | 클라이언트 이모티콘 플러스 판정을 활성화한다. 서버 사용 제한은 유지된다. iOS의 일일 체험 전송 경로는 미구현이다. |
 | 44 | Ghost Mode | 개발 중 | 정확한 iOS 실행 파일에서 입력 중 표시 판단 Swift getter를 변경한다. 미전송 입력 시험에서 차단 경로 6회 실행과 초안 정리를 확인했다. 상대 기기 표시 결과는 미검증이다. 읽음 표시 숨김이 아니다. |
 | 45 | Hide More tab Game tab | 개발 중 | 더보기 게임 항목의 표시 정책을 연결했다. 한국 화면에서 옵션을 켜면 홈만 남고 끄면 게임 탭이 다시 나타나는 것을 확인했다. 게임 선택 시 기본 화면으로 복귀하는 기존 처리와 지갑 항목은 유지한다. 시험 후 일본 화면과 게임 숨김 설정을 복원했다. |
-| 46 | Hide More tab components | 미구현 | 더보기 Pay/지금/날씨/서비스 그룹/라인 서비스를 각각 숨긴다. iOS에서 독립 옵션과 모델 필터 구현이 남았다. |
+| 46 | Hide More tab components | 개발 중 | 더보기의 페이, 카카오나우, 날씨, 서비스 모음과 세로형 목록에 독립 옵션을 연결했다. 아이폰에서 카카오나우와 날씨 숨김 및 복원, 서비스 아이콘 숨김을 확인했다. 페이와 세로형 목록의 실제 노출 화면은 미검증이며 Android의 모든 배치와 동등하다고 보장하지 않는다. |
 | 47 | Hook Package Manager | Android 전용 방식 | Android appComponentFactory/PackageManager 연결 변경. iOS 설치 및 런타임 구성 요소와 직접 호환되지 않는다. |
 | 48 | Ignore forward restriction | 개발 중 | iOS의 leverageMessageForwardable 판정에 선택 옵션을 연결했다. 준비된 실행 파일에 설치했고 기본값은 꺼짐이다. 다양한 메시지의 전달 선택 화면과 전송 결과는 미검증이다. |
 | 49 | Open profile from open chat feed | 미구현 | 오픈채팅 입장/퇴장 피드의 사용자 프로필을 연다. 여러 대상 처리, 권한, 퇴장한 사용자 처리까지 iOS 대응이 필요하다. |
 | 50 | Override feature flag | 미구현 | 이름=값 형태로 기능 플래그를 덮어쓴다. iOS 플래그 저장/판정 경로가 미확인이라 작동하지 않는 입력창은 추가하지 않았다. |
 | 51 | Register settings activity | 기존 기능 | Android Activity 대신 UIKit 화면을 앱 안에서 연다. 아이폰에서 설정 화면 진입, 옵션 저장, 재시작 후 적용을 확인했다. |
 | 52 | Remove BizBoard ads | 기존 기능 | 기존 BizBoard 로딩과 표시 영역 숨김으로 대응한다. 모든 광고 제거를 보장하는 항목은 아니다. |
-| 53 | Remove More tab ad | 일부 대응 | 기존 MoreTab.NativeADUIView/LocalBizboardUIView 숨김으로 일부 대응한다. 모든 더보기 프로모션을 제거하는 기능은 아니다. |
+| 53 | Remove More tab ad | 개발 중 | 기존 광고 로딩 차단에 더해 세 가지 SwiftUI 더보기 광고 영역의 렌더링을 생략한다. 아이폰에서 서비스 메뉴와 카카오나우 사이의 큰 빈 공간 제거를 확인했다. 모든 프로모션과 서버 요청이 제거된다는 뜻은 아니다. |
 | 54 | Remove OpenLink chat room list ad | 일부 대응 | 공통 광고 차단과 오픈채팅 우선 화면이 일부 대응한다. OpenLink 전용 전체 로딩 경로 검증은 남았다. |
 | 55 | Remove Short-form Tab | 기존 기능 | 기존 숏폼 숨김과 오픈채팅 우선 열기로 대응한다. 반복 탭 시 숏폼으로 바뀌지 않게 하는 기존 처리도 유지한다. |
 | 56 | Remove feed ad | 일부 대응 | 기존 FriendFeedAdLoader와 공통 광고 영역 숨김이 일부 대응한다. 모든 피드 광고의 동등한 차단은 미검증이다. |

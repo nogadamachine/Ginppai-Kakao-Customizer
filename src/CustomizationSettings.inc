@@ -8,8 +8,14 @@ static NSArray<NSDictionary *> *customizationGroups(void) {
         @[@"hideShopping",@"쇼핑 탭 숨기기",@"하단 메뉴에서 쇼핑을 뺍니다."],
         @[@"hideCallTab",@"통화 탭 숨기기",@"해외 화면의 하단 통화 메뉴를 뺍니다."],
         @[@"hideFriendFeed",@"친구 목록만 보기",@"친구 탭에서 소식을 빼고, 다시 열 때도 친구 목록을 유지합니다."],
-        @[@"hideMoreGame",@"더보기에서 게임 숨기기",@"게임 항목을 빼고 기본 더보기 화면을 사용합니다."],
         @[@"hideTabBadges",@"하단 숫자와 점 숨기기",@"하단 탭의 알림 표시만 정리합니다."]]},
+      @{@"title":@"더보기",@"icon":@"square.grid.2x2",@"summary":@"필요한 서비스와 정보만 표시",@"rows":@[
+        @[@"hideMoreGame",@"게임 탭 숨기기",@"더보기 상단에서 게임 항목을 뺍니다."],
+        @[@"hideMorePay",@"페이 영역 숨기기",@"더보기 안의 페이 영역을 숨깁니다. 결제나 계정 설정은 바뀌지 않습니다."],
+        @[@"hideMoreNow",@"카카오나우 숨기기",@"추천 콘텐츠 카드 영역을 숨깁니다."],
+        @[@"hideMoreWeather",@"날씨 숨기기",@"날씨와 지역 정보 카드를 숨깁니다."],
+        @[@"hideMoreServices",@"서비스 모음 숨기기",@"아이콘 메뉴와 세로형 서비스 목록을 함께 숨깁니다."],
+        @[@"hideMoreLinks",@"세로형 서비스 목록 숨기기",@"목록 형태로 배치된 서비스만 숨깁니다. 아이콘 메뉴는 유지합니다."]]},
       @{@"title":@"대화",@"icon":@"bubble.left.and.bubble.right",@"summary":@"입력 표시, 읽지 않은 수와 메시지 전송",@"rows":@[
         @[@"hideTyping",@"입력 중 표시 감추기",@"글을 쓰는 중이라는 표시를 보내지 않습니다. 읽음 표시는 유지됩니다."],
         @[@"uncapChatUnread",@"채팅 목록의 숫자 끝까지 표시",@"300+ 대신 기기가 가진 실제 안 읽은 메시지 수를 사용합니다."],
@@ -102,7 +108,7 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 - (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
     if(section==0)return @"필요한 기능만 골라 사용하세요. 변경값은 자동 저장되고, 적용 후 카카오톡을 다시 실행하면 반영됩니다.";
     if(section==1)return @"기능을 켠 뒤 기기에서 확인한 내용만 남습니다. 받기 전에 지워진 메시지는 복원할 수 없습니다.";
-    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.2\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
+    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.3\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
@@ -157,7 +163,9 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
     if(overseas(savedOptions) && [@[@"hideShortForm",@"preferOpenChat",@"hideShopping",@"scrollTopOnRetap"] containsObject:key])unavailable=@"해외 화면에는 이 탭이 없습니다. 한국 화면으로 돌아오면 저장한 값을 다시 사용합니다.";
     if(!overseas(savedOptions) && [key isEqualToString:@"hideCallTab"])unavailable=@"별도 통화 탭이 있는 해외 화면에서 사용할 수 있습니다.";
     if([key isEqualToString:@"preferOpenChat"] && [savedOptions[@"hideShortForm"] boolValue] && !overseas(savedOptions)){unavailable=@"숏폼 없이 사용 중에는 오픈채팅이 항상 먼저 열립니다.";toggle.on=YES;}
-    if([@[@"uncapMessageUnread",@"sendMarkdown",@"forwardLeverage",@"showMobileMessages",@"hideMoreGame",@"hideFriendFeed",@"blockTalkShareLog"] containsObject:key] && ![ginppaiCapabilities[key] boolValue])unavailable=@"현재 설치에서는 이 기능을 사용할 수 없습니다. 설치 안내에서 지원 조건을 확인해 주세요.";
+    if([@[@"uncapMessageUnread",@"sendMarkdown",@"forwardLeverage",@"showMobileMessages",@"hideMoreGame",@"hideFriendFeed",@"hideMorePay",@"hideMoreNow",@"hideMoreWeather",@"hideMoreServices",@"hideMoreLinks",@"blockTalkShareLog"] containsObject:key] && ![ginppaiCapabilities[key] boolValue])unavailable=@"현재 설치에서는 이 기능을 사용할 수 없습니다. 설치 안내에서 지원 조건을 확인해 주세요.";
+    if(overseas(savedOptions) && [@[@"hideMorePay",@"hideMoreNow",@"hideMoreWeather",@"hideMoreServices",@"hideMoreLinks"] containsObject:key])unavailable=@"한국 더보기 화면에서 적용됩니다. 해외 화면에서는 저장한 값을 유지합니다.";
+    if([key isEqualToString:@"hideMoreLinks"] && [savedOptions[@"hideMoreServices"] boolValue]){unavailable=@"서비스 모음 숨기기에 포함되어 있습니다.";toggle.on=YES;}
     if(unavailable){toggle.enabled=NO;cell.detailTextLabel.text=unavailable;cell.textLabel.textColor=UIColor.secondaryLabelColor;}
     [toggle addTarget:self action:@selector(changed:) forControlEvents:UIControlEventValueChanged];cell.accessoryView=toggle;cell.selectionStyle=UITableViewCellSelectionStyleNone;
     return cell;

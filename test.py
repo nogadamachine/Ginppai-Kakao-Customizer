@@ -20,3 +20,7 @@ with tempfile.TemporaryDirectory(prefix='ginppai-test-') as temp:
     subprocess.run(['xcrun','swiftc',str(root/'src/PhotoPrivacy.swift'),
                     str(root/'src/PhotoPrivacyTests.swift'),'-o',str(privacy)],check=True)
     subprocess.run([str(privacy)],check=True)
+    rendering=Path(temp)/'more-rendering-tests'
+    subprocess.run(['xcrun','swiftc',str(root/'src/MoreTabRendering.swift'),
+                    str(root/'src/MoreRenderingTests.swift'),'-o',str(rendering)],check=True)
+    subprocess.run([str(rendering)],check=True)

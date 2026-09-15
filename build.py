@@ -13,7 +13,7 @@ ENV = {**os.environ, 'SDKROOT': SDK}
 build_id = hashlib.sha256(b''.join(p.read_bytes() for p in sorted((ROOT/'src').glob('*')) if p.suffix in ['.m', '.inc', '.swift'])).hexdigest()[:16]
 target = ['-sdk', SDK, '-target', 'arm64-apple-ios17.0']
 subprocess.run(['xcrun', 'swiftc', *target, '-O', '-whole-module-optimization', '-parse-as-library', '-emit-object',
-                '-module-name', 'KCMedia', str(ROOT/'src/MediaResolver.swift'), str(ROOT/'src/MessageCore.swift'), str(ROOT/'src/PhotoPrivacy.swift'), '-o', str(BUILD/'MediaResolver.o')], check=True, env=ENV)
+                '-module-name', 'KCMedia', str(ROOT/'src/MediaResolver.swift'), str(ROOT/'src/MessageCore.swift'), str(ROOT/'src/PhotoPrivacy.swift'), str(ROOT/'src/MoreTabRendering.swift'), '-o', str(BUILD/'MediaResolver.o')], check=True, env=ENV)
 subprocess.run(['xcrun', 'clang', '-arch', 'arm64', '-isysroot', SDK, '-miphoneos-version-min=17.0',
                 '-fobjc-arc', '-fblocks', '-O2', '-Wall', '-Wextra', '-Wno-unused-parameter',
                 '-DKC_BUILD_ID="'+build_id+'"',

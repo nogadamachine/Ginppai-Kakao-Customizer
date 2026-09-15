@@ -464,8 +464,8 @@
       "upstreamSources": [
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/layout/tab/HideMoreTabComponentsPatch.kt"
       ],
-      "status": "pending",
-      "assessment": "더보기 Pay/지금/날씨/서비스 그룹/라인 서비스를 각각 숨긴다. iOS에서 독립 옵션과 모델 필터 구현이 남았다."
+      "status": "prototype",
+      "assessment": "더보기의 페이, 카카오나우, 날씨, 서비스 모음과 세로형 목록에 독립 옵션을 연결했다. 아이폰에서 카카오나우와 날씨 숨김 및 복원, 서비스 아이콘 숨김을 확인했다. 페이와 세로형 목록의 실제 노출 화면은 미검증이며 Android의 모든 배치와 동등하다고 보장하지 않는다."
     },
     {
       "number": 47,
@@ -534,8 +534,8 @@
       "upstreamSources": [
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/ad/RemoveMoreTabAdPatch.kt"
       ],
-      "status": "partial-existing",
-      "assessment": "기존 MoreTab.NativeADUIView/LocalBizboardUIView 숨김으로 일부 대응한다. 모든 더보기 프로모션을 제거하는 기능은 아니다."
+      "status": "prototype",
+      "assessment": "기존 광고 로딩 차단에 더해 세 가지 SwiftUI 더보기 광고 영역의 렌더링을 생략한다. 아이폰에서 서비스 메뉴와 카카오나우 사이의 큰 빈 공간 제거를 확인했다. 모든 프로모션과 서버 요청이 제거된다는 뜻은 아니다."
     },
     {
       "number": 54,

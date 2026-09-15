@@ -480,6 +480,13 @@ static void installCustomizationFeatures(void) {
     ginppaiInstallPhotoPrivacy();
     ginppaiInstallNativeHistory();
     ginppaiInstallFriendList();
+    if(ginppaiNativeBuildVerified) {
+        NSDictionary *render=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMoreTabRendering"),NSSelectorFromString(@"install:"),activeOptions);
+        NSDictionary *caps=render[@"capabilities"];
+        for(NSString *key in caps)if(![key isEqualToString:@"hideAds"])ginppaiCapabilities[key]=caps[key];
+        ginppaiCapabilities[@"moreAdLayout"]=caps[@"hideAds"]?:@NO;
+        for(NSString *name in render[@"installed"])[installed addObject:[@"More rendering: " stringByAppendingString:name]];
+    }
     for(NSString *name in @[@"KakaoTalk.UserMessageCellView",@"KakaoTalk.PhotoMessageCellView",@"KakaoTalk.MovieMessageCellView",@"KakaoTalk.LongTextMessageCellView"]) {
         Class bubble=NSClassFromString(name);SEL layout=@selector(layoutSubviews);Method layoutMethod=class_getInstanceMethod(bubble,layout);
         if(layoutMethod) {
