@@ -19,6 +19,7 @@ if not shutil.which('dpkg-deb'):
 dist = ROOT/'dist'
 dist.mkdir(exist_ok=True)
 shutil.copy2(dylib, dist/config['dylib'])
+artifacts = [dist/config['dylib']]
 for scheme, architecture, prefix in [('rootful', 'iphoneos-arm', ''), ('rootless', 'iphoneos-arm64', 'var/jb')]:
     with tempfile.TemporaryDirectory(prefix='ginppai-package-') as temp:
         stage = Path(temp)
@@ -30,11 +31,15 @@ for scheme, architecture, prefix in [('rootful', 'iphoneos-arm', ''), ('rootless
         (lib/Path(config['dylib']).with_suffix('.plist')).write_bytes(plistlib.dumps({
             'Filter': {'Bundles': ['com.iwilab.KakaoTalk']}
         }))
+        license_dir = stage/prefix/'usr/share/doc'/config['id']
+        license_dir.mkdir(parents=True)
+        for name in ['LICENSE', 'COPYING.MIT', 'NOTICE.md']:
+            shutil.copy2(ROOT/name, license_dir/name)
         minimum = config['minOS']
         if scheme == 'rootless' and tuple(map(int, minimum.split('.'))) < (15, 0):
             minimum = '15.0'
         fields = {
-            'Package': config['id'], 'Name': config['name'], 'Version': config['version'],
+            'Package': config['id'], 'Name': config['name'], 'Version': config.get('debVersion', config['version']),
             'Architecture': architecture, 'Section': 'Tweaks', 'Priority': 'optional',
             'Maintainer': 'nogadamachine <78150070+nogadamachine@users.noreply.github.com>',
             'Author': 'nogadamachine',
@@ -48,15 +53,19 @@ for scheme, architecture, prefix in [('rootful', 'iphoneos-arm', ''), ('rootless
             path.chmod(0o755 if path.is_dir() or path.suffix == '.dylib' else 0o644)
         output = dist/f"{config['id']}_{config['version']}_{architecture}.deb"
         subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '-b', str(stage), str(output)], check=True)
+        artifacts.append(output)
 bundle=dist/f"{config['name']}-{config['version']}-NonJailbreak.zip"
 with zipfile.ZipFile(bundle,'w',compression=zipfile.ZIP_DEFLATED) as archive:
     entries={config['dylib']:dylib, 'README.md':ROOT/'README.md', 'LICENSE':ROOT/'LICENSE',
-             'tools/prepare_ipa.py':ROOT/'tools/prepare_ipa.py'}
+             'COPYING.MIT':ROOT/'COPYING.MIT', 'NOTICE.md':ROOT/'NOTICE.md',
+             'tools/prepare_ipa.py':ROOT/'tools/prepare_ipa.py',
+             'tools/native_patch.py':ROOT/'tools/native_patch.py'}
     for path in (ROOT/'docs').glob('*'):
         if path.suffix in ['.md','.json']: entries['docs/'+path.name]=path
     for name,path in sorted(entries.items()): archive.writestr(name,path.read_bytes())
     archive.writestr('SHA256SUMS',''.join(f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {name}\n' for name,path in sorted(entries.items())))
+artifacts.append(bundle)
 (dist/'SHA256SUMS').write_text(''.join(
     f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
-    for p in sorted(dist.iterdir()) if p.suffix in ['.deb', '.dylib', '.zip']))
+    for p in sorted(artifacts)))
 print(dist)

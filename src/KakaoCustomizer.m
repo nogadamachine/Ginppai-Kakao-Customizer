@@ -2,9 +2,13 @@
 #import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 #import <objc/message.h>
+#ifndef KC_BUILD_ID
+#define KC_BUILD_ID "local-untracked"
+#endif
 
-// KakaoTalk 26.7.3 only. No message/database hooks and no network interception.
+// KakaoTalk 26.7.3 only. Fixed telemetry endpoints can be blocked locally.
 static NSDictionary *configurationReport(void);
+static NSDictionary *ginppaiReport(void);
 static NSMutableDictionary *counts;
 static NSMutableArray *installed;
 static NSMutableArray *viewSamples;
@@ -16,8 +20,8 @@ static void saveReport(void) {
     pendingWrite = YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         pendingWrite = NO;
-        NSDictionary *report = @{ @"version": @"2.3.2", @"target": @"26.7.3",
-            @"configuration": configurationReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
+        NSDictionary *report = @{ @"version": @"3.0.0-dev.1", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
+            @"configuration": configurationReport(), @"ginppai": ginppaiReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
         NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil];
         NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/KakaoAdBlock-status.json"];
         [data writeToFile:path atomically:YES];
@@ -46,10 +50,10 @@ static NSMutableDictionary *savedOptions;
 static NSDictionary *navigationReport;
 static BOOL countrySupport;
 static NSString *optionsPath(void) { return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Preferences/KakaoCustomizer.plist"]; }
-static NSArray *toggleKeys(void) { return @[@"hideAds",@"hideShortForm",@"preferOpenChat",@"hideShopping",@"hideCallTab",@"hideTabBadges",@"scrollTopOnRetap",@"quickSettings",@"profilePhotoSave"]; }
+static NSArray *toggleKeys(void) { return @[@"hideAds",@"hideShortForm",@"preferOpenChat",@"hideShopping",@"hideCallTab",@"hideTabBadges",@"scrollTopOnRetap",@"quickSettings",@"profilePhotoSave",@"hideTyping",@"messageDetails",@"readReceipts",@"messageHistory",@"uncapChatUnread",@"uncapMessageUnread",@"sendMarkdown",@"forwardLeverage",@"showMobileMessages",@"hideMoreGame",@"stripPhotoMetadata",@"externalBrowser",@"disableSentry",@"blockSDKTracking",@"blockTalkShareLog"]; }
 static NSDictionary *defaultOptions(void) {
     return @{@"hideAds":@YES,@"hideShortForm":@YES,@"preferOpenChat":@YES,@"hideShopping":@YES,
-             @"hideCallTab":@NO,@"hideTabBadges":@NO,@"scrollTopOnRetap":@NO,@"quickSettings":@NO,@"profilePhotoSave":@YES,@"countryISO":@"",@"startupTab":@"remember"};
+             @"hideCallTab":@NO,@"hideTabBadges":@NO,@"scrollTopOnRetap":@NO,@"quickSettings":@NO,@"profilePhotoSave":@YES,@"hideTyping":@YES,@"messageDetails":@YES,@"readReceipts":@YES,@"messageHistory":@YES,@"uncapChatUnread":@YES,@"uncapMessageUnread":@YES,@"sendMarkdown":@NO,@"forwardLeverage":@NO,@"showMobileMessages":@YES,@"hideMoreGame":@YES,@"stripPhotoMetadata":@NO,@"externalBrowser":@YES,@"disableSentry":@YES,@"blockSDKTracking":@YES,@"blockTalkShareLog":@YES,@"countryISO":@"",@"startupTab":@"remember"};
 }
 static BOOL option(NSString *key) { return [activeOptions[key] boolValue]; }
 static BOOL saveOptions(void) { return [savedOptions writeToFile:optionsPath() atomically:YES]; }
@@ -58,7 +62,7 @@ static BOOL overseas(NSDictionary *options) { NSString *iso=options[@"countryISO
 static NSString *countryName(NSString *iso) {
     if(!iso.length)return @"계정 기본값";
     NSString *name=[[NSLocale localeWithLocaleIdentifier:@"ko_KR"] displayNameForKey:NSLocaleCountryCode value:iso];
-    return [NSString stringWithFormat:@"%@ · %@",name?:iso,iso];
+    return [NSString stringWithFormat:@"%@  /  %@",name?:iso,iso];
 }
 static NSArray *startupKeys(void) { return @[@"remember",@"friends",@"chats",@"now",@"calls",@"more"]; }
 static NSArray *startupNames(void) { return @[@"카카오톡 기본 동작",@"친구",@"채팅",@"오픈채팅 / 지금",@"통화",@"더보기"]; }
@@ -100,90 +104,13 @@ static BOOL storeOption(NSString *key,id value,UIViewController *host) {
     savedOptions[key]=old;showSaveFailure(host);return NO;
 }
 
-@interface KCSettingsController : UITableViewController
-@end
-@interface KCCountryController : UITableViewController <UISearchResultsUpdating>
-@property(nonatomic,strong) NSArray<NSDictionary *> *countries;
-@property(nonatomic,strong) NSArray<NSDictionary *> *filtered;
-@property(nonatomic,strong) UISearchController *countrySearch;
-@end
-@interface KCStartupController : UITableViewController
-@end
-
-@implementation KCSettingsController
-- (instancetype)init { return [super initWithStyle:UITableViewStyleInsetGrouped]; }
-- (void)viewDidLoad {
-    [super viewDidLoad];self.title=@"트윅 설정";
-    self.navigationItem.leftBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"닫기" style:UIBarButtonItemStylePlain target:self action:@selector(close)];
-}
-- (void)refresh {
-    self.navigationItem.rightBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"적용 후 종료" style:UIBarButtonItemStyleDone target:self action:@selector(apply)];
-    self.navigationItem.rightBarButtonItem.enabled=hasChanges();
-    [self.tableView reloadData];
-}
-- (void)viewWillAppear:(BOOL)animated { [super viewWillAppear:animated];[self refresh]; }
-- (void)close { [self dismissViewControllerAnimated:YES completion:nil]; }
-- (void)apply {
-    if(!saveOptions()){showSaveFailure(self);return;}
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,300*NSEC_PER_MSEC),dispatch_get_main_queue(),^{exit(0);});
-}
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)table { return 5; }
-- (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section { return [@[@4,@6,@1,@1,@1][section] integerValue]; }
-- (NSString *)tableView:(UITableView *)table titleForHeaderInSection:(NSInteger)section { return @[@"화면 정리",@"편의 기능",@"화면 국가 · 지역",@"적용 상태",@"초기화"][section]; }
-- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
-    if(section==0)return overseas(savedOptions)?@"해외 화면에는 숏폼·오픈채팅·쇼핑 탭이 없어 해당 옵션을 잠시 비활성화합니다. 저장값은 한국 화면으로 돌아오면 다시 사용됩니다.":@"숏폼을 숨기면 오픈채팅이 항상 먼저 열립니다. 광고 숨김은 확인된 광고 영역에 적용됩니다.";
-    if(section==1)return @"통화 탭 숨김은 해외 화면에서 사용할 수 있습니다. 알림 배지는 하단 표시만 숨깁니다. 빠른 설정은 더보기 탭을 두 번 누르거나 길게 눌러 엽니다. 없는 시작 탭을 선택한 경우 친구 탭으로 시작합니다.";
-    if(section==2)return countrySupport?@"화면 구성만 바뀌며 계정과 전화번호 국가는 유지됩니다. 여러 국가는 같은 해외 화면을 사용합니다. 중복 통화 탭은 자동으로 정리합니다.":@"현재 설치에서는 국가 전환 기능을 사용할 수 없습니다.";
-    if(section==3)return @"변경값은 자동 저장됩니다. 위쪽 ‘적용 후 종료’를 누르고 카카오톡을 다시 실행해 주세요.";
-    if(section==4)return @"Ginppai-Kakao-Customizer 2.3.2 · 카카오톡 26.7.3\n만든이 · nogadamachine";
-    return nil;
-}
-- (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
-    UITableViewCell *cell=[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
-    cell.textLabel.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];cell.textLabel.adjustsFontForContentSizeCategory=YES;
-    cell.textLabel.numberOfLines=0;cell.detailTextLabel.numberOfLines=0;
-    if(index.section==0 || (index.section==1 && index.row<5)) {
-        NSUInteger n=index.section==0?index.row:index.row+4;
-        cell.textLabel.text=@[@"광고 숨김",@"숏폼 숨김",@"오픈채팅 우선 열기",@"쇼핑 탭 숨김",@"통화 탭 숨김",@"하단 알림 배지 숨김",@"오픈채팅 재선택 시 맨 위로",@"더보기에서 빠른 설정",@"프로필 사진·영상 저장 버튼"][n];
-        UISwitch *toggle=[[UISwitch alloc] init];toggle.tag=n;toggle.on=[savedOptions[toggleKeys()[n]] boolValue];
-        if(n==7)cell.detailTextLabel.text=@"두 번 누르거나 길게 눌러 열기";
-        if(n==8)cell.detailTextLabel.text=@"현재·이전 프로필과 배경의 원본 사진·영상을 저장";
-        if(overseas(savedOptions) && n>=1 && n<=3){toggle.enabled=NO;cell.detailTextLabel.text=@"해외 화면에서는 해당 탭이 없습니다";}
-        else if(n==2 && [savedOptions[@"hideShortForm"] boolValue]){toggle.on=YES;toggle.enabled=NO;cell.detailTextLabel.text=@"숏폼 숨김 사용 중에는 항상 켜짐";}
-        if(n==6 && overseas(savedOptions)){toggle.enabled=NO;cell.detailTextLabel.text=@"해외 화면에는 오픈채팅 탭이 없습니다";}
-        if(!toggle.enabled)cell.textLabel.textColor=UIColor.secondaryLabelColor;
-        toggle.accessibilityLabel=cell.textLabel.text;
-        [toggle addTarget:self action:@selector(toggleChanged:) forControlEvents:UIControlEventValueChanged];
-        cell.accessoryView=toggle;cell.selectionStyle=UITableViewCellSelectionStyleNone;
-    } else if(index.section==1) {
-        cell.textLabel.text=@"시작 탭";cell.detailTextLabel.text=startupName(savedOptions[@"startupTab"]);cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;
-    } else if(index.section==2) {
-        cell.textLabel.text=countryName(savedOptions[@"countryISO"]);cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;
-        if(!countrySupport)cell.textLabel.textColor=UIColor.secondaryLabelColor;
-    } else if(index.section==3) {
-        cell.textLabel.text=hasChanges()?@"변경 저장됨 · 다시 실행 필요":@"저장한 설정이 적용되어 있습니다";
-        cell.detailTextLabel.text=[NSString stringWithFormat:@"현재 화면: %@",countryName(activeOptions[@"countryISO"])];
-        cell.selectionStyle=UITableViewCellSelectionStyleNone;
-    } else {cell.textLabel.text=@"트윅 기본값으로 되돌리기";cell.textLabel.textColor=UIColor.systemRedColor;}
-    return cell;
-}
-- (void)toggleChanged:(UISwitch *)sender { storeOption(toggleKeys()[sender.tag],@(sender.on),self);[self refresh]; }
-- (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)index {
-    [table deselectRowAtIndexPath:index animated:YES];
-    if(index.section==1 && index.row==5)[self.navigationController pushViewController:[[KCStartupController alloc] init] animated:YES];
-    if(index.section==2 && countrySupport)[self.navigationController pushViewController:[[KCCountryController alloc] init] animated:YES];
-    if(index.section==4) {
-        NSDictionary *old=[savedOptions copy];[savedOptions setDictionary:defaultOptions()];
-        if(!saveOptions()){[savedOptions setDictionary:old];showSaveFailure(self);}
-        [self refresh];
-    }
-}
-@end
+static NSMutableDictionary *ginppaiCapabilities;
+#include "CustomizationSettings.inc"
 
 @implementation KCCountryController
 - (instancetype)init { return [super initWithStyle:UITableViewStyleInsetGrouped]; }
 - (void)viewDidLoad {
-    [super viewDidLoad];self.title=@"화면 국가 · 지역";
+    [super viewDidLoad];self.title=@"화면 국가  /  지역";
     NSMutableArray *all=[NSMutableArray array];NSLocale *english=[NSLocale localeWithLocaleIdentifier:@"en_US"];
     for(NSString *iso in NSLocale.ISOCountryCodes) {
         if(iso.length!=2)continue;
@@ -210,8 +137,8 @@ static BOOL storeOption(NSString *key,id value,UIViewController *host) {
 }
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)table { return 2; }
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section { return section==0?1:self.filtered.count; }
-- (NSString *)tableView:(UITableView *)table titleForHeaderInSection:(NSInteger)section { return section==1?[NSString stringWithFormat:@"국가 · 지역 %lu개",(unsigned long)self.filtered.count]:nil; }
-- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section { return section==0?@"계정 기본값은 원래 국가 판정을 사용합니다. 국가를 고른 뒤 이전 화면에서 적용해 주세요.":nil; }
+- (NSString *)tableView:(UITableView *)table titleForHeaderInSection:(NSInteger)section { return section==1?[NSString stringWithFormat:@"국가  /  지역 %lu개",(unsigned long)self.filtered.count]:nil; }
+- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section { return section==0?@"계정 기본값은 원래 국가 판정을 사용합니다. 계정과 전화번호의 국가는 유지됩니다. 여러 국가는 같은 해외 화면을 사용합니다.":nil; }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
     UITableViewCell *cell=[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
     NSString *iso=index.section==0?@"":self.filtered[index.row][@"iso"];
@@ -221,7 +148,7 @@ static BOOL storeOption(NSString *key,id value,UIViewController *host) {
 }
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)index {
     NSString *iso=index.section==0?@"":self.filtered[index.row][@"iso"];
-    storeOption(@"countryISO",iso,self);[table deselectRowAtIndexPath:index animated:YES];[table reloadData];
+    storeOption(@"countryISO",iso,self);[table deselectRowAtIndexPath:index animated:YES];[self refresh];
 }
 @end
 
@@ -244,7 +171,7 @@ static BOOL storeOption(NSString *key,id value,UIViewController *host) {
 - (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section { return @"카카오톡을 새로 실행할 때 선택한 탭을 엽니다. 이미 채팅방이나 상세 화면이 열렸으면 시작 탭 이동을 생략합니다."; }
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)index {
     NSString *key=startupKeys()[index.row];if([self available:key])storeOption(@"startupTab",key,self);
-    [table deselectRowAtIndexPath:index animated:YES];[table reloadData];
+    [table deselectRowAtIndexPath:index animated:YES];[self refresh];
 }
 @end
 
@@ -261,7 +188,7 @@ static void addSettingsEntry(UIViewController *vc) {
     UIView *wrapper=[[UIView alloc] initWithFrame:CGRectMake(0,0,CGRectGetWidth(table.bounds),previousHeight+112)];
     wrapper.autoresizingMask=UIViewAutoresizingFlexibleWidth;
     UIButtonConfiguration *config=[UIButtonConfiguration filledButtonConfiguration];
-    config.title=@"트윅 설정";config.subtitle=@"광고 · 탭 · 국가 · 편의 기능";config.image=[UIImage systemImageNamed:@"slider.horizontal.3"];
+    config.title=@"Ginppai";config.subtitle=@"내 카카오톡 맞춤 설정";config.image=[UIImage systemImageNamed:@"slider.horizontal.3"];
     config.imagePadding=12;config.titleAlignment=UIButtonConfigurationTitleAlignmentLeading;
     config.baseBackgroundColor=UIColor.secondarySystemGroupedBackgroundColor;config.baseForegroundColor=UIColor.labelColor;config.cornerStyle=UIButtonConfigurationCornerStyleMedium;
     __weak UIViewController *weakVC=vc;
@@ -274,7 +201,7 @@ static void addSettingsEntry(UIViewController *vc) {
     button.frame=CGRectMake(16,previousHeight+8,MAX(100,CGRectGetWidth(wrapper.bounds)-32),64);button.autoresizingMask=UIViewAutoresizingFlexibleWidth;
     [wrapper addSubview:button];
     UILabel *credit=[[UILabel alloc] initWithFrame:CGRectMake(16,previousHeight+78,MAX(100,CGRectGetWidth(wrapper.bounds)-32),20)];
-    credit.text=@"만든이 · nogadamachine";credit.textAlignment=NSTextAlignmentCenter;
+    credit.text=@"만든이  /  nogadamachine";credit.textAlignment=NSTextAlignmentCenter;
     credit.font=[UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];credit.textColor=UIColor.secondaryLabelColor;
     credit.adjustsFontForContentSizeCategory=YES;credit.autoresizingMask=UIViewAutoresizingFlexibleWidth;
     [wrapper addSubview:credit];
@@ -771,7 +698,7 @@ static KCProfileTransfer *profileTransfer;
     if(written>1024LL*1024*1024){[self fail:@"파일이 1GB를 초과하여 다운로드를 중단했습니다."];return;}
     NSTimeInterval now=NSDate.timeIntervalSinceReferenceDate;if(now-self.lastProgress<0.3)return;self.lastProgress=now;
     NSString *amount=[NSByteCountFormatter stringFromByteCount:written countStyle:NSByteCountFormatterCountStyleFile];
-    self.progress.message=expected>0?[NSString stringWithFormat:@"%.0f%% · %@",100.0*written/expected,amount]:[amount stringByAppendingString:@" 다운로드됨"];
+    self.progress.message=expected>0?[NSString stringWithFormat:@"%.0f%%  /  %@",100.0*written/expected,amount]:[amount stringByAppendingString:@" 다운로드됨"];
 }
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
     if(error && !self.finished && !self.handedOff && error.code!=NSURLErrorCancelled)[self fail:@"원본 파일을 받지 못했습니다. 연결을 확인하고 프로필을 다시 연 뒤 시도해 주세요."];
@@ -825,7 +752,7 @@ static KCProfileTransfer *profileTransfer;
                     if(!track || !isfinite(seconds) || seconds<=0){
                         NSError *error=trackError?:durationError;
                         event([NSString stringWithFormat:@"profile:video-validation:%ld:%ld:%@:%ld",(long)trackStatus,(long)durationStatus,error.domain?:@"none",(long)error.code]);
-                        [self fail:@"내려받은 영상 파일을 읽지 못했습니다. 사진·영상을 다시 열어 주세요."];return;
+                        [self fail:@"내려받은 영상 파일을 읽지 못했습니다. 사진 / 영상을 다시 열어 주세요."];return;
                     }
                     self.video=YES;
                     [self fileReady:@{@"kind":@"video",@"width":@(llround(fabs(size.width))),@"height":@(llround(fabs(size.height))),@"duration":@(seconds)} extension:ext];
@@ -936,7 +863,7 @@ static void saveProfileOriginal(UIView *root) {
     if(profileTransfer && !profileTransfer.committing && (!profileTransfer.root.window || (profileTransfer.task.state!=NSURLSessionTaskStateRunning && !profileTransfer.progress.presentingViewController))) [profileTransfer cancel];
     if(profileTransfer){profileToast(root,@"진행 중인 원본 저장을 완료해 주세요");return;}
     NSDictionary *resource=[KCMediaResolver resolve:profileMediaOwner(root) contexts:profileContexts(root)];NSURL *url=resource[@"url"];
-    if(!url){profileNotice(root,@"원본 주소를 찾지 못했습니다",@"사진·영상이 완전히 열린 뒤 다시 눌러 주세요. 원본이 없는 경우 화면용 이미지로 대신 저장하지 않습니다.");return;}
+    if(!url){profileNotice(root,@"원본 주소를 찾지 못했습니다",@"사진 / 영상이 완전히 열린 뒤 다시 눌러 주세요. 원본이 없는 경우 화면용 이미지로 대신 저장하지 않습니다.");return;}
     KCProfileTransfer *transfer=[KCProfileTransfer new];transfer.root=root;transfer.resource=resource;transfer.remoteURL=url;
     transfer.video=[resource[@"video"] boolValue];profileTransfer=transfer;[transfer start];
 }
@@ -1071,6 +998,9 @@ static void installProfileDownload(void) {
     }
 }
 
+#include "CustomizationFeatures.inc"
+static NSDictionary *ginppaiReport(void) {return @{@"upstream":@"v1.5.0-dev.9",@"commit":@"70f43985acdb0f9fe49d5cda0b88676583aca2d1",@"capabilities":ginppaiCapabilities?:@{},@"bubbleLayout":ginppaiLayoutDiagnostics?:@{},@"unreadCalculation":ginppaiUnreadProbe?:@{},@"universalCover":ginppaiCoverProbe?:@{}};}
+
 __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
@@ -1100,9 +1030,10 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installNowReselectionFix();
         installInitialOpenChatPreference();
         installSettingsEntry();
+        installCustomizationFeatures();
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-        NSLog(@"[Ginppai-Kakao-Customizer] 2.3.2 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
+        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.0-dev.1 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
     }
 }

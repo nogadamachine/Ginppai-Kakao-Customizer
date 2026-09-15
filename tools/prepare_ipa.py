@@ -10,8 +10,32 @@ from pathlib import Path, PurePosixPath
 import plistlib
 import stat
 import struct
+import subprocess
 import tempfile
 import zipfile
+
+def custom_branding(app, name):
+    """Rename only app display labels, preserving executable and signing IDs."""
+    name=name.strip()
+    if not name or len(name)>80 or any(ord(c)<32 or ord(c)==127 for c in name):
+        raise ValueError('App display name must contain 1 to 80 visible characters on one line.')
+    targets=[app/'Info.plist', *sorted(app.glob('*.lproj/InfoPlist.strings'))]
+    changes=[]
+    for path in targets:
+        raw=path.read_bytes()
+        try:
+            values=plistlib.loads(raw)
+        except plistlib.InvalidFileException:
+            # Apple localized strings also use the OpenStep format. Parse with
+            # the system plist tool instead of replacing labels with a regex.
+            converted=subprocess.run(['plutil','-convert','xml1','-o','-',str(path)],capture_output=True,check=True)
+            values=plistlib.loads(converted.stdout)
+        if not isinstance(values,dict): raise ValueError('Expected a property-list dictionary.')
+        values['CFBundleDisplayName']=name
+        values['CFBundleName']=name
+        changes.append((path,plistlib.dumps(values,fmt=plistlib.FMT_BINARY)))
+    # Validate every locale before applying the first change in the temp app.
+    for path,data in changes: path.write_bytes(data)
 
 def commands(data):
     if len(data)<32 or struct.unpack_from('<II',data)[0:2]!=(0xFEEDFACF,0x100000C):
@@ -96,6 +120,8 @@ def main():
     parser.add_argument('output',type=Path)
     parser.add_argument('--dylib',type=Path,action='append',required=True)
     parser.add_argument('--country-ui',action='store_true',help='Apply verified KakaoTalk 26.7.3 UI-only country patch.')
+    parser.add_argument('--features',action='store_true',help='Add verified native message-save callbacks for Ginppai features.')
+    parser.add_argument('--display-name',help='Set the main app name in all bundled languages before signing.')
     args=parser.parse_args()
     if args.output.exists(): parser.error('Output already exists; choose a new filename.')
     if not all(p.is_file() and p.suffix=='.dylib' for p in args.dylib): parser.error('Each dylib must exist.')
@@ -118,10 +144,14 @@ def main():
         if info.get('CFBundleIdentifier')!='com.iwilab.KakaoTalk': raise ValueError('Expected KakaoTalk IPA.')
         if any('Customizer' in p.name for p in args.dylib) and info.get('CFBundleShortVersionString')!='26.7.3':
             raise ValueError('Customizer supports only KakaoTalk 26.7.3.')
+        if args.display_name is not None: custom_branding(app,args.display_name)
         executable=app/info['CFBundleExecutable'];binary=bytearray(executable.read_bytes())
         if args.country_ui:
             if info.get('CFBundleShortVersionString')!='26.7.3': raise ValueError('Country patch requires 26.7.3.')
             binary=country_patch(binary)
+        if args.features:
+            from native_patch import patch
+            binary=patch(binary)
         frameworks=app/'Frameworks';frameworks.mkdir(exist_ok=True)
         for library in args.dylib:
             binary=inject(binary,f'@executable_path/Frameworks/{library.name}')
