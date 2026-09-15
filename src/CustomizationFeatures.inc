@@ -458,6 +458,7 @@ static void ginppaiInstallTyping(void) {
     if(patched)[installed addObject:@"ChatInputController isBlockTypingAction Swift getter"];
 }
 
+#include "FriendList.inc"
 static void installCustomizationFeatures(void) {
     ginppaiCapabilities=[NSMutableDictionary new];
     ginppaiLayoutDiagnostics=[NSMutableDictionary new];
@@ -478,6 +479,7 @@ static void installCustomizationFeatures(void) {
     ginppaiInstallNativeOptions();
     ginppaiInstallPhotoPrivacy();
     ginppaiInstallNativeHistory();
+    ginppaiInstallFriendList();
     for(NSString *name in @[@"KakaoTalk.UserMessageCellView",@"KakaoTalk.PhotoMessageCellView",@"KakaoTalk.MovieMessageCellView",@"KakaoTalk.LongTextMessageCellView"]) {
         Class bubble=NSClassFromString(name);SEL layout=@selector(layoutSubviews);Method layoutMethod=class_getInstanceMethod(bubble,layout);
         if(layoutMethod) {

@@ -32,7 +32,7 @@
 | 24 | Disable ChatRoomAdController | 일부 대응 | 기존 BizboardManager/AdFit 로딩 차단이 일부 대응한다. 오픈링크 채팅방 광고 컨트롤러 전체 동등성은 미확인이다. |
 | 25 | Disable Collapse Button | 미구현 | 오픈채팅 목록의 접기/더보기용 잘림을 없앤다. 기존 재선택 후 맨 위 이동과 별도 기능이다. |
 | 26 | Disable Community Tab | 미구현 | 오픈채팅 목록의 커뮤니티 영역을 제외한다. 숏폼 탭 숨김과 별도 기능이며 미구현이다. |
-| 27 | Disable Friend Feed tab | 미구현 | 친구 피드 대신 친구 목록을 사용한다. 국가 화면 변경만으로 동등 구현이라고 계산하지 않는다. |
+| 27 | Disable Friend Feed tab | 개발 중 | 친구 헤더의 소식 항목을 모델에서 제외하고 앱의 기본 선택 처리로 친구 목록을 유지한다. 아이폰에서 옵션 켜기와 끄기, 저장된 소식 상태에서 재실행, 하단 탭 반복 선택을 확인했다. 다른 iOS 버전 시험은 남았다. |
 | 28 | Disable Friend Lists ad | 일부 대응 | 기존 FriendFeedAdLoader와 BizBoard/GlobalBanner 차단이 대응한다. 친구 영역의 모든 지역별 광고 경로를 이번 개발판에서 다시 검증하지 않았다. |
 | 29 | Disable OpenChat feed ad | 일부 대응 | 공통 AdFit 차단이 일부 대응한다. 오픈채팅 피드의 요청과 렌더링 경로 전체는 미확인이다. |
 | 30 | Disable Pay banner ad | 미구현 | KakaoPay 배너 광고 로딩과 표시 차단. iOS Pay 배너만을 대상으로 한 연결 지점이 미확인이다. |
@@ -40,7 +40,7 @@
 | 32 | Disable SDK Tracker | 개발 중 | 확인된 ad.daum.net 및 Tiara 두 호스트를 로컬 응답으로 차단한다. 기기에서 요청 한 건의 차단 호출을 확인했다. 전체 SDK 경로의 동등성 검증은 남았다. |
 | 33 | Disable Sentry | 개발 중 | Sentry SDK 초기화 호출을 중단한다. 초기화 차단 호출 기록은 확인했지만 전체 전송 여부 검증은 남아 있다. |
 | 34 | Disable ShortForm ad | 일부 대응 | 숏폼을 숨기면 해당 화면은 사라진다. 숏폼을 켠 상태의 개별 광고 로더 차단은 아직 동등하게 구현하지 않았다. |
-| 35 | Disable Talk Share Log | 개발 중 | 실제 iOS 공유 기록 API getter로 얻은 정확한 주소의 전송을 차단한다. 로컬 기록 구성 자체를 중단하는 것은 아니며 전체 공유 경로 기기 검증은 남았다. |
+| 35 | Disable Talk Share Log | 개발 중 | 실제 API 주소를 요청 시점에 확인하도록 수정했다. 아이폰에서 외부 전송을 막는 시험용 보호 장치를 둔 상태로 정확한 공유 분석 주소의 로컬 204 응답을 확인했다. 일반 URLSession 전송 대상이며 로컬 기록 구성과 백그라운드 URLSession까지 중단하지는 않는다. |
 | 36 | Disable abuse detection report | Android 전용 방식 | Android Play Integrity 응답의 토큰/오류 값을 변경한다. 신고 전송 자체를 모두 중단하는 기능이 아니며 iOS App Attest 패치로 계산하지 않는다. |
 | 37 | Disable chat room list ad | 일부 대응 | 기존 채팅 목록 Bizboard/GlobalBizboard 표시 차단과 공통 광고 로더 차단이 일부 대응한다. 전체 경로 동등성은 미확인이다. |
 | 38 | Disable open chat room comments | 미구현 | 오픈채팅 댓글 기능을 끄는 옵션. iOS 댓글 정책/화면 연결은 미구현이다. |

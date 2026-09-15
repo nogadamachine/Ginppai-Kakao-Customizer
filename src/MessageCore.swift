@@ -168,11 +168,26 @@ enum KCTrackerPolicy {
         guard let endpoint = URL(string: absolute), blocksShareLog(endpoint, endpoint: endpoint) else { return nil }
         return endpoint
     }
-    static let shareLogEndpoint: URL? = {
+    static var shareLogEndpoint: URL? {
+        // The app configures its API host after tweak initialization. Resolve
+        // it when matching a request so an early placeholder never stays cached.
         guard let symbol = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "$s11TalkNetwork6APIURLV12talkShareLogSSvgZ") else { return nil }
         let getter = unsafeBitCast(symbol, to: (@convention(thin) () -> String).self)
         return nativeShareLogEndpoint(getter())
-    }()
+    }
+}
+
+enum KCLayoutPolicy {
+    static func friendChipRole(typeName: String, caseName: String) -> Int {
+        guard typeName.hasPrefix("FriendsFeedPresentation.FriendsTabHeaderView."),
+              typeName.hasSuffix(".ChipItem") else { return -1 }
+        return caseName == "list" ? 0 : (caseName == "feed" ? 1 : -1)
+    }
+    static func friendListIndex(_ roles: [Int]) -> Int? {
+        guard (1...2).contains(roles.count), roles.filter({ $0 == 0 }).count == 1,
+              roles.allSatisfy({ $0 == 0 || $0 == 1 }) else { return nil }
+        return roles.firstIndex(of: 0)
+    }
 }
 
 struct KCHistoryEntry: Codable, Equatable {
@@ -292,8 +307,26 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
         return message as AnyObject
     }
     @objc public static func isTrackerURL(_ url: URL) -> Bool { KCTrackerPolicy.blocks(url) }
-    @objc public static func isShareLogURL(_ url: URL) -> Bool { KCTrackerPolicy.blocksShareLog(url, endpoint: KCTrackerPolicy.shareLogEndpoint) }
+    @objc public static func isShareLogURL(_ url: URL) -> Bool {
+        guard url.path.hasSuffix("/talk_share/log.json") else { return false }
+        return KCTrackerPolicy.blocksShareLog(url, endpoint: KCTrackerPolicy.shareLogEndpoint)
+    }
     @objc public static func shareLogAvailable() -> Bool { KCTrackerPolicy.shareLogEndpoint != nil }
+    @objc public static func friendChipRole(_ object: Any) -> Int {
+        let value = (object as? AnyHashable)?.base ?? object
+        let mirror = Mirror(reflecting: value)
+        guard mirror.displayStyle == .enum, mirror.children.isEmpty else { return -1 }
+        return KCLayoutPolicy.friendChipRole(typeName: String(reflecting: type(of: value)), caseName: String(describing: value))
+    }
+    @objc public static func friendListIndex(_ objects: [Any]) -> Int {
+        guard (1...2).contains(objects.count) else { return -1 }
+        return KCLayoutPolicy.friendListIndex(objects.map(friendChipRole)) ?? -1
+    }
+    @objc public static func friendSelectedIndexPath(_ object: AnyObject) -> NSIndexPath? {
+        guard String(reflecting: type(of: object)) == "FriendsFeedPresentation.FriendsTabHeaderView",
+              let index = KCRecord.field(object, "currentSelectedChipIndexPath") as? IndexPath else { return nil }
+        return index as NSIndexPath
+    }
     @objc public static func snapshot(_ object: AnyObject) -> NSDictionary? {
         KCRecord.snapshot(object) as NSDictionary?
     }

@@ -2,7 +2,7 @@
 
 카카오톡 26.7.3 및 iOS 17 이상이 필요합니다. 처음 설치하거나 앱을 업데이트하기 전에 카카오톡의 대화 백업을 확인하세요. 앱을 삭제 / 재설치하면 기존 로그인과 대화가 유지된다고 보장할 수 없습니다.
 
-## 탈옥 — DEB 또는 repo
+## 탈옥 - DEB 또는 repo
 
 1. Sileo/Zebra/Cydia에 `https://nogadamachine.github.io/Ginppai-Repo/`를 추가합니다.
 2. **Ginppai-Kakao-Customizer**를 설치합니다. 사용하는 부트스트랩이 지원하는 패키지만 선택합니다.
@@ -20,19 +20,19 @@ DEB 직접 설치도 가능합니다. `iphoneos-arm64`는 루트리스(`/var/jb`
 
 필터 대상은 `com.iwilab.KakaoTalk`뿐입니다. 수동 DYLIB 설치를 선호한다면 DEB에서 DYLIB와 동명 PLIST를 **함께** 꺼내 해당 경로에 넣을 수 있지만, 패키지 관리자가 제거 / 업데이트를 관리하는 DEB 방식을 권장합니다.
 
-## 비탈옥 — SideStore + LiveContainer
+## 비탈옥 - SideStore + LiveContainer
 
 1. [SideStore 공식 설치 안내](https://docs.sidestore.io/docs/installation/install)를 따라 SideStore를 설치합니다.
 2. [LiveContainer 공식 설치 안내](https://livecontainer.github.io/docs/installation/lc_sidestore)를 따라 LiveContainer를 설치하고 서명을 설정합니다.
 3. 준비한 카카오톡 IPA를 LiveContainer에 가져옵니다.
 4. Releases에서 `GinppaiKakaoCustomizer.dylib`를 받습니다.
-5. LiveContainer의 **Tweaks → 새 폴더**에서 카카오톡 전용 폴더를 만들고 DYLIB를 가져옵니다.
+5. LiveContainer의 **Tweaks / 새 폴더**에서 카카오톡 전용 폴더를 만들고 DYLIB를 가져옵니다.
 6. 카카오톡 앱 설정의 **Tweak Folder**로 그 폴더를 지정합니다. TweakLoader를 끄는 옵션은 해제합니다.
 7. 카카오톡을 실행합니다. LiveContainer가 트윅을 서명해 불러옵니다.
 
 [LiveContainer의 트윅 공식 안내](https://livecontainer.github.io/docs/guides/tweaks)에 폴더 지정과 재서명 방법이 있습니다. 기존 `KakaoAdBlock.dylib`을 사용 중이면 새 파일과 동시에 두지 말고 교체합니다. 설정 파일 이름을 유지하므로 기존 옵션을 계속 읽습니다. iPad 트윅은 별도 파일로 함께 둘 수 있습니다.
 
-## 비탈옥 — SideStore에 IPA 직접 설치
+## 비탈옥 - SideStore에 IPA 직접 설치
 
 카카오톡 26.7.3의 **본인이 준비한 비암호화 IPA**와 배포 DYLIB가 필요합니다. 이 프로젝트는 IPA를 배포하거나 암호화를 해제하지 않습니다.
 
@@ -80,9 +80,16 @@ UI 국가 진입점만 바꾸며, 원래 계정 국가 판정 함수는 보존�
 
 ## 3.0 개발판의 추가 연결
 
-이 브랜치는 아직 배포 준비가 끝나지 않은 개발판입니다. 72개 패치의 구현 상태는 [기능별 검증 범위](FEATURES.md)를 확인하세요. 기존 2.3.2 설치 기록을 새 기능의 기기 검증으로 해석하지 마세요.
+3.0 개발판은 GitHub Releases에서 별도로 배포합니다. 패키지 관리자의 기본 저장소는 안정판 2.3.2를 제공합니다. 구현된 기능과 남은 시험은 [기능별 검증 범위](FEATURES.md)를 확인하세요.
 
-`--features`은 확인된 KakaoTalk 26.7.3 실행 파일에 메시지 저장 관측 콜백을 준비하는 실험 옵션입니다. `tools/native_patch.py`가 `prepare_ipa.py`와 같은 폴더에 있어야 합니다. 코드 지문이 다르거나 이미 변경된 대상이면 중단합니다. 이 옵션 하나로 모든 추가 기능이 구현되지는 않습니다.
+`--features`는 확인된 KakaoTalk 26.7.3 실행 파일에 메시지 기록, 읽지 않은 수 확장, 서식 전송, 공유 카드 전달, 보조 기기 표시와 게임 탭 설정을 연결하는 옵션입니다. `tools/native_patch.py`가 `prepare_ipa.py`와 같은 폴더에 있어야 합니다. 코드 지문이 다르거나 이미 변경된 대상이면 중단합니다. 이 옵션 하나로 모든 추가 기능이 구현되지는 않습니다.
+
+```bash
+python3 tools/prepare_ipa.py original.ipa Ginppai-Kakao-3.ipa \
+  --dylib GinppaiKakaoCustomizer.dylib --features --country-ui
+```
+
+이 명령으로 DYLIB를 포함시킨 IPA를 LiveContainer에서 사용한다면 전용 트윅 폴더에 같은 Customizer DYLIB를 중복 추가하지 마세요. 이미 포함된 트윅의 업데이트는 새 DYLIB로 원래 IPA를 다시 준비하는 방식으로 진행합니다. 기존 설치의 데이터와 서명 조건을 확인하고 앱을 삭제하지 않은 상태에서 업데이트하세요.
 
 변경된 실행 파일은 반드시 SideStore 또는 LiveContainer의 서명 절차를 다시 거쳐야 합니다. 실행 중인 앱 파일만 교체하면 기존 코드 서명이 맞지 않아 iOS가 실행을 중단할 수 있습니다. 개발 시험에서 이 서명 오류를 확인했으며, 재서명 후 새 콜백 실행 검증이 필요합니다.
 

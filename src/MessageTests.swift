@@ -92,6 +92,19 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         check(!KCTrackerPolicy.blocksShareLog(shareEndpoint,endpoint:nil), "Unavailable native endpoint never enables a broad filter")
         check(!KCTrackerPolicy.blocksShareLog(shareEndpoint,endpoint:URL(string:"https://example.test/ios/talk/share")), "Reject an unexpected native getter result")
 
+        let chipType="FriendsFeedPresentation.FriendsTabHeaderView.(unknown context at $1234).ChipItem"
+        check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"list")==0, "Identify the native friend list without translated labels")
+        check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"feed")==1, "Identify the native feed role")
+        check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"future")==(-1), "Unknown future chip roles are unchanged")
+        for value in ["Other.Header.ChipItem", "FriendsFeedPresentation.FriendsTabHeaderView.ChipSection", "FriendsFeedPresentation.FriendsTabHeaderViewFake.X.ChipItem"] {
+            check(KCLayoutPolicy.friendChipRole(typeName:value,caseName:"feed")==(-1), "Preserve unrelated enum types")
+        }
+        check(KCLayoutPolicy.friendListIndex([0,1])==0 && KCLayoutPolicy.friendListIndex([1,0])==1, "Select the list by role even if ordering changes")
+        check(KCLayoutPolicy.friendListIndex([0])==0, "An already filtered list remains valid")
+        for roles in [[],[1],[0,0],[0,-1],[0,1,1]] {
+            check(KCLayoutPolicy.friendListIndex(roles)==nil, "Do not filter missing, duplicate, unknown or oversized models")
+        }
+
         var history = KCHistoryPolicy.merge(nil, chatID: "12", logID: "100", senderID: "1", text: "original", type: 1, now: 1)
         let duplicate = KCHistoryPolicy.merge(history, chatID: "12", logID: "100", senderID: "1", text: "original", type: 1, now: 2)
         check(duplicate == history, "Repeated display does not duplicate history")
