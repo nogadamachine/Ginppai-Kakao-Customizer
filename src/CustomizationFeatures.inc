@@ -9,8 +9,6 @@ static NSDictionary *ginppaiUnreadProbe;
 static NSDictionary *ginppaiCoverProbe;
 static __weak id ginppaiChatController;
 static __weak id ginppaiChat;
-static const char ginppaiBubbleKey;
-static const char ginppaiToolsTargetKey;
 static intptr_t ginppaiImageSlide;
 static const uint8_t *ginppaiImageBase;
 static BOOL ginppaiNativeBuildVerified;
@@ -76,7 +74,7 @@ static NSDictionary *ginppaiSnapshot(id message) {
     return result;
 }
 static void ginppaiObserve(id message) {
-    if(!option(@"messageHistory"))return;
+    if(!option(@"messageHistory") && !option(@"showDeletedMessages"))return;
     NSDictionary *snapshot=ginppaiSnapshot(message);
     if(snapshot){((void(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageHistory"),NSSelectorFromString(@"observe:"),snapshot);event(@"ginppai.history.observed");}
 }
@@ -131,7 +129,7 @@ static NSString *ginppaiJSON(id value) {
 - (void)viewDidLoad {
     [super viewDidLoad];self.view.backgroundColor=UIColor.systemBackgroundColor;
     UITextView *text=[[UITextView alloc] initWithFrame:CGRectZero];text.editable=NO;text.selectable=YES;text.text=self.content;
-    text.font=[UIFont monospacedSystemFontOfSize:13 weight:UIFontWeightRegular];text.backgroundColor=UIColor.systemBackgroundColor;
+    text.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];text.adjustsFontForContentSizeCategory=YES;text.backgroundColor=UIColor.systemBackgroundColor;
     text.textColor=UIColor.labelColor;text.textContainerInset=UIEdgeInsetsMake(16,12,24,12);text.translatesAutoresizingMaskIntoConstraints=NO;
     [self.view addSubview:text];[NSLayoutConstraint activateConstraints:@[[text.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],[text.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],[text.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],[text.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor]]];
     self.navigationItem.leftBarButtonItem=[[UIBarButtonItem alloc] initWithTitle:@"닫기" style:UIBarButtonItemStylePlain target:self action:@selector(close)];
@@ -184,11 +182,12 @@ static void ginppaiShowHistory(NSDictionary *snapshot,UIView *anchor) {
     NSArray *history=ginppaiHistory(snapshot);NSMutableString *text=[NSMutableString new];
     NSDateFormatter *format=[NSDateFormatter new];format.dateFormat=@"yyyy-MM-dd HH:mm:ss";
     for(NSDictionary *revision in history) {
-        [text appendFormat:@"%@\n유형 %@\n%@\n\n",[format stringFromDate:[NSDate dateWithTimeIntervalSince1970:[revision[@"observedAt"] doubleValue]]],revision[@"type"],revision[@"text"]?:@""];
-        if([revision[@"attachment"] length])[text appendFormat:@"첨부 정보\n%@\n\n",revision[@"attachment"]];
+        NSString *body=revision[@"text"];
+        if(!body.length)body=[revision[@"type"] integerValue]==2?@"사진 메시지":([revision[@"type"] integerValue]==3?@"동영상 메시지":@"보관된 텍스트가 없습니다.");
+        [text appendFormat:@"기록 %@\n보관 시각: %@\n%@\n\n",@([history indexOfObjectIdenticalTo:revision]+1),[format stringFromDate:[NSDate dateWithTimeIntervalSince1970:[revision[@"observedAt"] doubleValue]]],body];
     }
     if(!history.count)[text appendString:@"보관된 기록이 없습니다. 기능을 켠 뒤 기기에서 확인한 메시지부터 기록합니다. 받기 전에 삭제된 내용은 복원할 수 없습니다."];
-    ginppaiShowText(anchor,@"메시지 기록",text);event(@"ginppai.history.open");
+    ginppaiShowText(anchor,@"변경 기록",text);event(@"ginppai.history.open");
 }
 
 @interface KCMessageHistoryListController : UITableViewController <UISearchResultsUpdating>
@@ -219,102 +218,15 @@ static void ginppaiShowHistory(NSDictionary *snapshot,UIView *anchor) {
     [table deselectRowAtIndexPath:index animated:YES];ginppaiShowHistory(self.filtered[index.row],self.view);
 }
 @end
-static void ginppaiAfterDismiss(UIView *anchor,void(^action)(void)) {
-    UIViewController *host=ginppaiHost(anchor);
-    if([host isKindOfClass:UIAlertController.class]) [host dismissViewControllerAnimated:YES completion:action];
-    else dispatch_async(dispatch_get_main_queue(),action);
-}
-static NSArray<UIAccessibilityCustomAction *> *ginppaiNativeMenuActions(id handler) {
-    id values=ginppaiCall(handler,@"subMenuActionsForAccessibility");
-    if(![values isKindOfClass:NSArray.class])return @[];
-    NSMutableArray *actions=[NSMutableArray new];
-    for(id value in values)if([value isKindOfClass:UIAccessibilityCustomAction.class] && [value name].length && actions.count<32)[actions addObject:value];
-    return actions;
-}
-static void ginppaiNativeActionsMenu(NSArray<UIAccessibilityCustomAction *> *actions,UIView *anchor) {
-    ginppaiAfterDismiss(anchor,^{
-        UIViewController *host=ginppaiHost(anchor);
-        UIAlertController *menu=[UIAlertController alertControllerWithTitle:@"카카오톡 메시지 기능" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
-        for(UIAccessibilityCustomAction *action in actions) {
-            [menu addAction:[UIAlertAction actionWithTitle:action.name style:UIAlertActionStyleDefault handler:^(UIAlertAction *selected){
-                ginppaiAfterDismiss(anchor,^{
-                    BOOL handled=NO;
-                    if(action.actionHandler)handled=action.actionHandler(action);
-                    else {
-                        id target=action.target;SEL selector=action.selector;Method method=class_getInstanceMethod(object_getClass(target),selector);
-                        if(method) {
-                            char type[16];method_getReturnType(method,type,sizeof(type));
-                            if(type[0]=='B' || type[0]=='c') {
-                                if(method_getNumberOfArguments(method)==3)handled=((BOOL(*)(id,SEL,id))objc_msgSend)(target,selector,action);
-                                else if(method_getNumberOfArguments(method)==2)handled=((BOOL(*)(id,SEL))objc_msgSend)(target,selector);
-                            }
-                        }
-                    }
-                    event(handled?@"ginppai.nativeAction.handled":@"ginppai.nativeAction.unavailable");
-                    if(!handled)ginppaiShowText(anchor,@"카카오톡 메시지 기능",@"현재 메시지에서 이 기능을 실행하지 못했습니다.");
-                });
-            }]];
-        }
-        [menu addAction:[UIAlertAction actionWithTitle:@"닫기" style:UIAlertActionStyleCancel handler:nil]];
-        menu.popoverPresentationController.sourceView=anchor?:host.view;menu.popoverPresentationController.sourceRect=anchor?anchor.bounds:CGRectMake(1,1,1,1);
-        [host presentViewController:menu animated:YES completion:nil];event(@"ginppai.nativeActions.open");
-    });
-}
-static void ginppaiMessageMenu(id message,UIView *anchor,id nativeHandler) {
-    NSDictionary *snapshot=ginppaiSnapshot(message);UIViewController *host=ginppaiHost(anchor);
-    if(!snapshot || !host || [host isKindOfClass:UIAlertController.class])return;
-    ginppaiObserve(message);
-    UIAlertController *menu=[UIAlertController alertControllerWithTitle:@"Ginppai 메시지 도구" message:nil preferredStyle:UIAlertControllerStyleActionSheet];
-    NSArray *nativeActions=ginppaiNativeMenuActions(nativeHandler);
-    if(nativeActions.count)[menu addAction:[UIAlertAction actionWithTitle:@"카카오톡 기본 메뉴" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ginppaiNativeActionsMenu(nativeActions,anchor);}]];
-    if(option(@"messageDetails"))[menu addAction:[UIAlertAction actionWithTitle:@"메시지 상세 정보" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ginppaiShowText(anchor,@"메시지 상세 정보",ginppaiJSON(snapshot));event(@"ginppai.details.open");}]];
-    if(option(@"readReceipts"))[menu addAction:[UIAlertAction actionWithTitle:@"읽은 사람 확인" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ginppaiShowText(anchor,@"읽은 사람 확인",ginppaiReceiptText(ginppaiReceipts(snapshot)));event(@"ginppai.receipts.open");}]];
-    if(option(@"messageHistory"))[menu addAction:[UIAlertAction actionWithTitle:@"삭제 및 수정 기록" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){ginppaiShowHistory(snapshot,anchor);}]];
-    [menu addAction:[UIAlertAction actionWithTitle:@"채팅방 ID 복사" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a){UIPasteboard.generalPasteboard.string=snapshot[@"chatID"];}]];
-    [menu addAction:[UIAlertAction actionWithTitle:@"닫기" style:UIAlertActionStyleCancel handler:nil]];
-    menu.popoverPresentationController.sourceView=anchor?:host.view;menu.popoverPresentationController.sourceRect=anchor?anchor.bounds:CGRectMake(CGRectGetMidX(host.view.bounds),CGRectGetMidY(host.view.bounds),1,1);
-    [host presentViewController:menu animated:YES completion:nil];event(@"ginppai.menu.open");
-}
+static NSString *ginppaiPreservedMessage(id message);
+#include "MessageMenu.inc"
 
-@interface KCMessageToolsTarget : NSObject
-@property(nonatomic,weak) UIView *bubble;
-@end
-@implementation KCMessageToolsTarget
-- (void)tap:(UIButton *)button {
-    id message=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"bubbleMessage:"),self.bubble);
-    UIView *cell=self.bubble;
-    while(cell && ![cell isKindOfClass:UITableViewCell.class])cell=cell.superview;
-    id handler=cell?((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"nativeMenuHandler:"),cell):nil;
-    if(message)ginppaiMessageMenu(message,button,handler);
-}
-@end
 static void ginppaiUpdateBubble(UIView *view,BOOL observe) {
+    if(!observe || (!option(@"messageHistory") && !option(@"showDeletedMessages")))return;
     BOOL modern=[view isKindOfClass:UITableViewCell.class] && [NSStringFromClass(view.class) hasPrefix:@"_TtGC10ChatBubble"];
     if(modern || [view isKindOfClass:NSClassFromString(@"KakaoTalk.UserMessageCellView")]) {
         id message=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"bubbleMessage:"),view);
-        if(observe)ginppaiObserve(message);
-        if(option(@"messageDetails") || option(@"readReceipts") || option(@"messageHistory")) {
-            // Native photo/movie wrappers deliberately have zero bounds. The
-            // enclosing table cell is the visible, reusable layout container.
-            UIView *ancestor=modern?view:view.superview;
-            while(ancestor && ![ancestor isKindOfClass:UITableViewCell.class])ancestor=ancestor.superview;
-            UIView *host=((UITableViewCell *)ancestor).contentView;
-            if(!host)return;
-            UIButton *button=objc_getAssociatedObject(host,&ginppaiBubbleKey);
-            if(!button){
-                KCMessageToolsTarget *target=[KCMessageToolsTarget new];
-                button=[UIButton buttonWithType:UIButtonTypeSystem];[button setImage:[UIImage systemImageNamed:@"info.circle"] forState:UIControlStateNormal];button.accessibilityLabel=@"Ginppai 메시지 도구";
-                button.backgroundColor=[UIColor.secondarySystemBackgroundColor colorWithAlphaComponent:0.94];button.layer.cornerRadius=13;
-                [button addTarget:target action:@selector(tap:) forControlEvents:UIControlEventTouchUpInside];[host addSubview:button];objc_setAssociatedObject(host,&ginppaiBubbleKey,button,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-                objc_setAssociatedObject(button,&ginppaiToolsTargetKey,target,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
-            }
-            ((KCMessageToolsTarget *)objc_getAssociatedObject(button,&ginppaiToolsTargetKey)).bubble=view;
-            button.hidden=!message || host.bounds.size.width<35 || host.bounds.size.height<24;
-            BOOL sent=[NSStringFromClass(view.class) containsString:@"SentBubbleCell"];
-            button.frame=CGRectMake(sent?4:MAX(0,host.bounds.size.width-30),2,26,26);[host bringSubviewToFront:button];
-            if(ginppaiLayoutDiagnostics.count<12 || ginppaiLayoutDiagnostics[NSStringFromClass(view.class)])
-                ginppaiLayoutDiagnostics[NSStringFromClass(view.class)]=@{@"bounds":NSStringFromCGRect(view.bounds),@"hostBounds":NSStringFromCGRect(host.bounds),@"buttonFrame":NSStringFromCGRect(button.frame),@"hidden":@(button.hidden),@"messageFound":@(message!=nil),@"attached":@(button.superview==host)};
-        }
+        ginppaiObserve(message);
     }
 }
 static void ginppaiDecorateBubble(UIView *view) {
@@ -411,7 +323,7 @@ static void ginppaiInstallNativeOptions(void) {
 }
 static void ginppaiNativeBeforeSave(void *context) {
     static _Thread_local BOOL observing;
-    if(observing || !option(@"messageHistory"))return;
+    if(observing || (!option(@"messageHistory") && !option(@"showDeletedMessages")))return;
     observing=YES;
     @try {ginppaiObserve((__bridge id)context);event(@"ginppai.history.nativeSave");}
     @catch(NSException *exception){event(@"ginppai.history.captureFailed");}
@@ -423,7 +335,7 @@ static BOOL __attribute__((swiftcall)) ginppaiNativeSave(__attribute__((swift_co
     ginppaiNativeBeforeSave(context);return ginppaiOriginalSave(context);
 }
 static void ginppaiInstallNativeHistory(void) {
-    if(!option(@"messageHistory") || !ginppaiNativeBuildVerified)return;
+    if((!option(@"messageHistory") && !option(@"showDeletedMessages")) || !ginppaiNativeBuildVerified)return;
     if(memcmp(ginppaiImageBase+0x77f0,"GCAMPLE1",8)==0) {
         void **slot=(void **)(0x1083e7f08+ginppaiImageSlide);
         if(ginppaiWritablePointer(slot,NULL,(void *)&ginppaiNativeBeforeSave)) {
@@ -459,6 +371,7 @@ static void ginppaiInstallTyping(void) {
 }
 
 #include "FriendList.inc"
+#include "DeletedMessages.inc"
 static void installCustomizationFeatures(void) {
     ginppaiCapabilities=[NSMutableDictionary new];
     ginppaiLayoutDiagnostics=[NSMutableDictionary new];
@@ -479,6 +392,7 @@ static void installCustomizationFeatures(void) {
     ginppaiInstallNativeOptions();
     ginppaiInstallPhotoPrivacy();
     ginppaiInstallNativeHistory();
+    ginppaiInstallDeletedMessages();
     ginppaiInstallFriendList();
     if(ginppaiNativeBuildVerified) {
         NSDictionary *render=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMoreTabRendering"),NSSelectorFromString(@"install:"),activeOptions);
@@ -487,40 +401,18 @@ static void installCustomizationFeatures(void) {
         ginppaiCapabilities[@"moreAdLayout"]=caps[@"hideAds"]?:@NO;
         for(NSString *name in render[@"installed"])[installed addObject:[@"More rendering: " stringByAppendingString:name]];
     }
-    for(NSString *name in @[@"KakaoTalk.UserMessageCellView",@"KakaoTalk.PhotoMessageCellView",@"KakaoTalk.MovieMessageCellView",@"KakaoTalk.LongTextMessageCellView"]) {
-        Class bubble=NSClassFromString(name);SEL layout=@selector(layoutSubviews);Method layoutMethod=class_getInstanceMethod(bubble,layout);
-        if(layoutMethod) {
-            IMP original=method_getImplementation(layoutMethod);
-            replace(bubble,layout,imp_implementationWithBlock(^(UIView *self){
-                ((void(*)(id,SEL))original)(self,layout);ginppaiUpdateBubble(self,NO);
-            }),method_getTypeEncoding(layoutMethod));
-        }
-    }
+    ginppaiInstallMessageMenu();
     Class controller=NSClassFromString(@"KakaoTalk.ChattingTableViewController");
     SEL display=NSSelectorFromString(@"tableView:willDisplayCell:forRowAtIndexPath:");Method method=class_getInstanceMethod(controller,display);
     if(method){
         IMP original=method_getImplementation(method);
         replace(controller,display,imp_implementationWithBlock(^(id self,id table,UIView *cell,id index){
             ((void(*)(id,SEL,id,id,id))original)(self,display,table,cell,index);
-            if([cell isKindOfClass:UITableViewCell.class]) {
-                UIButton *old=objc_getAssociatedObject(((UITableViewCell *)cell).contentView,&ginppaiBubbleKey);
-                old.hidden=YES;((KCMessageToolsTarget *)objc_getAssociatedObject(old,&ginppaiToolsTargetKey)).bubble=nil;
-            }
             ginppaiChatController=self;ginppaiChat=ginppaiField(ginppaiField(self,@"messageProvider"),@"chat");
-            NSString *cellName=NSStringFromClass(cell.class);
-            if([cell isKindOfClass:UITableViewCell.class] && [cellName hasPrefix:@"_TtGC10ChatBubble"] && ![ginppaiCellLayouts containsObject:cellName]) {
-                SEL layout=@selector(layoutSubviews);Method layoutMethod=class_getInstanceMethod(cell.class,layout);
-                if(layoutMethod) {
-                    IMP layoutOriginal=method_getImplementation(layoutMethod);
-                    replace(cell.class,layout,imp_implementationWithBlock(^(UIView *view){
-                        ((void(*)(id,SEL))layoutOriginal)(view,layout);ginppaiUpdateBubble(view,NO);
-                    }),method_getTypeEncoding(layoutMethod));
-                    [ginppaiCellLayouts addObject:cellName];
-                }
-            }
             ginppaiDecorateBubble(cell);
+            if([cell isKindOfClass:UITableViewCell.class])ginppaiUpdateDeletedLabel((UITableViewCell *)cell);
             __weak UIView *weakCell=cell;
-            dispatch_async(dispatch_get_main_queue(),^{if(weakCell)ginppaiDecorateBubble(weakCell);});
+            dispatch_async(dispatch_get_main_queue(),^{if(weakCell){ginppaiDecorateBubble(weakCell);if([weakCell isKindOfClass:UITableViewCell.class])ginppaiUpdateDeletedLabel((UITableViewCell *)weakCell);}});
         }),method_getTypeEncoding(method));
         for(NSString *key in @[@"messageDetails",@"readReceipts",@"messageHistory"])ginppaiCapabilities[key]=@YES;
     }
@@ -532,7 +424,12 @@ static void installCustomizationFeatures(void) {
         SEL sel=NSSelectorFromString(@"processWebUrlLink:appName:userID:inWeb:");Method m=class_getInstanceMethod(controller,sel);
         if(m){IMP original=method_getImplementation(m);replace(controller,sel,imp_implementationWithBlock(^(id self,id value,id app,id user,BOOL inWeb){
             NSURL *url=[value isKindOfClass:NSURL.class]?value:([value isKindOfClass:NSString.class]?[NSURL URLWithString:value]:nil);
-            if(url.host.length && [@[@"http",@"https"] containsObject:url.scheme.lowercaseString]){[UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];event(@"ginppai.browser.open");}
+            if(url.host.length && [@[@"http",@"https"] containsObject:url.scheme.lowercaseString]){
+                [UIApplication.sharedApplication openURL:url options:@{} completionHandler:^(BOOL success){
+                    if(success){event(@"ginppai.browser.open");return;}
+                    dispatch_async(dispatch_get_main_queue(),^{((void(*)(id,SEL,id,id,id,BOOL))original)(self,sel,value,app,user,inWeb);event(@"ginppai.browser.fallback");});
+                }];
+            }
             else ((void(*)(id,SEL,id,id,id,BOOL))original)(self,sel,value,app,user,inWeb);
         }),method_getTypeEncoding(m));ginppaiCapabilities[@"externalBrowser"]=@YES;}
     }

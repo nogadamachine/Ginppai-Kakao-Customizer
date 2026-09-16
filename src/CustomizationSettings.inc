@@ -27,7 +27,8 @@ static NSArray<NSDictionary *> *customizationGroups(void) {
         @[@"profilePhotoSave",@"프로필에 저장 버튼 표시",@"현재와 이전 프로필, 배경의 원본 사진과 영상을 사진 앱에 저장합니다."],
         @[@"stripPhotoMetadata",@"보낼 사진의 촬영 정보 지우기",@"JPEG, HEIC, PNG의 위치와 촬영 정보를 정리합니다. 사진 앱 원본은 유지하며, 처리할 수 없는 형식은 원본 그대로 보냅니다."]]},
       @{@"title":@"기록",@"icon":@"clock.arrow.circlepath",@"summary":@"메시지 정보와 기기에 보관한 변경 내역",@"rows":@[
-        @[@"messageDetails",@"메시지 정보 버튼 표시",@"선택한 메시지의 내용, 첨부 정보와 채팅방 ID를 확인합니다."],
+        @[@"showDeletedMessages",@"삭제된 메시지 원문 표시",@"삭제 전에 기기에 보관된 텍스트를 말풍선에 표시하고 시간 옆에 삭제됨을 붙입니다. 켜기 전에 지워져 원문이 없는 메시지는 복원하지 못합니다."],
+        @[@"messageDetails",@"메시지 정보 보기",@"메시지를 길게 누른 뒤 메시지 도구에서 내용과 보낸 시각을 확인합니다."],
         @[@"readReceipts",@"읽은 사람 목록 보기",@"기기에 있는 읽음 위치를 기준으로 표시합니다. 자료가 없으면 확인 불가로 남깁니다."],
         @[@"messageHistory",@"확인한 메시지 기록 남기기",@"원문과 변경 내역을 이 기기에 보관합니다. 최대 5,000개 메시지, 메시지당 20개 기록을 유지합니다."]]},
       @{@"title":@"개인정보",@"icon":@"hand.raised",@"summary":@"오류 보고와 사용 분석 전송 설정",@"rows":@[
@@ -108,7 +109,7 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 - (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
     if(section==0)return @"필요한 기능만 골라 사용하세요. 변경값은 자동 저장되고, 적용 후 카카오톡을 다시 실행하면 반영됩니다.";
     if(section==1)return @"기능을 켠 뒤 기기에서 확인한 내용만 남습니다. 받기 전에 지워진 메시지는 복원할 수 없습니다.";
-    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.4\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
+    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.5\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {

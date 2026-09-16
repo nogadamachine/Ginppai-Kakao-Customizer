@@ -18,8 +18,8 @@
 | 10 | Allow profile media download | 기존 기능 | 현재와 과거 프로필, 배경, 영상의 원본 파일을 사진 앱에 저장하는 기존 기능으로 대응한다. |
 | 11 | Allow reply to feed | 미구현 | 피드 메시지에 스와이프 답장 또는 댓글을 허용한다. carouselLeverage 예외와 삭제 메시지 방어를 함께 구현해야 한다. |
 | 12 | Always Show Kick Button | 미구현 | 참여자 관리에서 내보내기 버튼을 표시한다. 서버 권한이 생기는 기능은 아니며 iOS 관리 동작은 미구현이다. |
-| 13 | Block reactions on deleted or hidden messages | 미구현 | 원본을 보존해 보여주는 서버 삭제/가림 메시지의 반응과 두 번 탭 전송을 막는다. 현재 보관함은 읽기 전용이며 채팅 본문 보존 기능은 미구현이다. |
-| 14 | Block replies on deleted or hidden messages | 미구현 | 보존된 서버 삭제/가림 메시지를 답장/댓글 대상으로 보내지 못하게 한다. 채팅 본문 보존 기능과 함께 구현해야 한다. |
+| 13 | Block reactions on deleted or hidden messages | 개발 중 | 보관한 삭제 원문 말풍선의 두 번 탭 반응과 반응 메뉴를 막는 방어를 추가했다. 실제 삭제 원문 메뉴에는 반응 동작이 없음을 확인했다. 직접 손가락 반응 제스처 시험은 남았다. |
+| 14 | Block replies on deleted or hidden messages | 개발 중 | 보관한 삭제 원문에는 복사와 조회 메뉴가 열리며 기본 답장 항목은 표시되지 않는다. 실제 삭제 이벤트와 메뉴를 확인했다. 스와이프 제스처 경로의 추가 시험은 남았다. |
 | 15 | Bypass Moat check | Android 전용 방식 | KakaoPay Android Moat 네이티브 스캔을 생략하는 기능. iOS 결제 무결성 검사에 동일 패치를 적용하지 않았다. |
 | 16 | Bypass input mention limit in non-multichat | 미구현 | 다중대화가 아닌 대화의 멘션 입력 허용 판단을 확장하는 패치다. upstream은 MentionComponent의 Bool 판정을 바꾼다. 단순한 최대 멘션 개수 변경으로 대체하지 않으며 iOS 입력 경로는 분석 중이다. |
 | 17 | Change model | 별도 트윅 | Android는 Samsung 태블릿 Build 정보를 사용한다. iOS 기기 판정은 별도 Ginppai-Kakao-iPad가 담당하며 기존 설치 파일을 보존한다. |
@@ -66,9 +66,9 @@
 | 58 | Remove native ad | 일부 대응 | 기존 AdFitNativeAdLoader 차단이 대응한다. 요청 실패 처리와 모든 화면의 재시도 동작은 이번 개발판에서 검증하지 않았다. |
 | 59 | Remove shop tab | 기존 기능 | 기존 쇼핑 탭 숨김 옵션으로 대응한다. |
 | 60 | Restore keyword notification log | 미구현 | 키워드 알림 기록 수집, 목록 진입, 원래 대화 위치 이동을 복원한다. 단순 보관함 검색은 이 기능을 대신하지 않는다. |
-| 61 | Show chatroom channel ID | 개발 중 | 선택 메시지 도구에서 채팅방 ID를 복사한다. upstream의 채팅 설정 및 사이드 제목 진입 위치까지 동일하지는 않다. |
-| 62 | Show deleted, hidden, or edited messages | 개발 중 | 관측한 메시지의 텍스트와 유형 변경을 별도 읽기 전용 보관함에 저장한다. 실제 수정 전후 두 버전 표시와 재실행 후 기록 보존을 확인했다. 채팅 본문 원문 유지, 첨부와 서식 보존, 모든 수신 경로는 미구현이다. |
-| 63 | Show message details | 개발 중 | 선택한 iOS MessageRecord와 해석한 첨부를 JSON으로 표시한다. 나와의 채팅 사진과 3인 대화의 보낸 텍스트에서 표시 및 선택 본문 일치를 확인했다. 임의 계정 객체는 탐색하지 않는다. Android 전체 ChatLog와 필드 및 진입 UI는 다르다. |
+| 61 | Show chatroom channel ID | 제외 | 일상 사용에 불필요한 채팅방 식별자 복사 항목은 메시지 메뉴 정리 과정에서 제외했다. |
+| 62 | Show deleted, hidden, or edited messages | 개발 중 | 보관한 삭제 전 텍스트를 화면용 메시지 객체로 표시한다. iOS 26.1에서 받은 메시지 2개와 보낸 메시지 1개의 실제 삭제, 원래 말풍선과 각 빨간 삭제됨 표시, 옵션 끄기와 재실행을 확인했다. 실제 삭제 기록은 유지한다. 원문 미보관, 사진과 영상 복원은 지원하지 않으며 모든 수신 경로와 긴 대화의 재사용 시험은 남았다. |
+| 63 | Show message details | 개발 중 | 기본 메뉴 첫 행 오른쪽의 메시지 도구에서 내용, 종류와 보낸 시각을 표시한다. 메뉴의 기본 행 수와 높이를 유지해 삭제 항목도 보인다. 받은 삭제 메시지와 보낸 시험 메시지의 본문 및 시각 일치를 기기에서 확인했다. |
 | 64 | Show message read receipts | 개발 중 | 네이티브 코드에서 참여자 ID와 읽음 위치의 두 Int64 배열이 같은 인덱스로 대응함을 확인했다. 위치 대응 및 누락/잘못된 값 처리를 테스트했다. 기기에서 나와의 채팅 1명, 3인 대화 3명의 읽음 목록과 이름 표시를 확인했다. |
 | 65 | Show messages restricted to mobile | 개발 중 | Universal 표시 정책과 알림톡 및 Leverage의 보조 기기 표시 경로를 변경했다. 아이폰에서 모바일 및 보조 기기 조건 해제와 유효성, 버전, 잠금, 연령 제한 유지 계산을 확인했다. 실제 제한 메시지 화면 비교는 남았다. |
 | 66 | Spoof App ID | Android 전용 방식 | Android APK key hash를 쓰는 App ID/생체 인증 식별자 패치. iOS 생체 인증을 우회하는 기능으로 이식하지 않았다. |

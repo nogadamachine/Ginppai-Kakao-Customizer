@@ -1,4 +1,24 @@
 import Foundation
+@_silgen_name("KCMessageStringABIRoundtrip")
+func KCMessageStringABIRoundtrip(_ text: NSString) -> String
+
+@_silgen_name("KCRecordABICopy")
+func KCRecordABICopy(_ source: NSObject, _ destination: NSObject)
+public protocol KCABIRecordProperties: AnyObject { var type: Int32 { get } }
+private final class KCABIRecord: KCABIRecordProperties {
+    static var destroyed = 0
+    let type: Int32
+    init(_ type: Int32) { self.type=type }
+    deinit { Self.destroyed += 1 }
+}
+public class KCABIMessage: NSObject {
+    var record: any KCABIRecordProperties
+    init(_ record: any KCABIRecordProperties) { self.record=record }
+    @_silgen_name("KCABIGetRecord")
+    public func getRecord() -> any KCABIRecordProperties { record }
+    @_silgen_name("KCABISetRecord")
+    public func setRecord(_ value: __owned any KCABIRecordProperties) { record=value }
+}
 
 class RecordIdentifiers {
     let chatID: Int64
@@ -40,6 +60,21 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
             precondition(value(), name);passed += 1
         }
         let message = ChatMessage("original")
+        for text in ["", "short", "삭제된 메시지 원문", String(repeating: "한글 ABC 123\n", count: 2048)] {
+            var matches=true
+            for _ in 0..<128 { if KCMessageStringABIRoundtrip(text as NSString) != text { matches=false } }
+            check(matches,"Swift String return and swift_context ownership round trip")
+        }
+        var recordCopiesMatch=true
+        for _ in 0..<128 {
+            autoreleasepool {
+                let source=KCABIMessage(KCABIRecord(0x4001)), display=KCABIMessage(KCABIRecord(0))
+                KCRecordABICopy(source,display)
+                recordCopiesMatch = recordCopiesMatch && source.record === display.record && source.record.type == 0x4001
+            }
+        }
+        check(recordCopiesMatch,"Native record existential ABI preserves shared record identity and deletion state")
+        check(KCABIRecord.destroyed==256,"Record getter ownership is consumed exactly once by setter without leaks")
         let snapshot = KCRecord.snapshot(message)!
         check(snapshot["logID"] as? String == "9007199254740999", "64-bit log IDs remain exact")
         check((snapshot["record"] as? [String:Any])?["chatID"] as? Int64 == 12, "Include inherited record identity fields")
@@ -54,6 +89,15 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         check(KCRecord.identifier(NSNumber(value: true)) == nil, "Boolean is not a user ID")
         check(KCRecord.identifier(NSNumber(value: 1.5)) == nil, "Fractional values are not IDs")
         check(KCRecord.identifier("00012") == "12", "Normalize integer IDs before comparison")
+        let info = KCMessagePresentation.infoRows(snapshot)
+        check(info.contains(["내용", "original"]), "Readable info uses only selected decrypted content")
+        check(!info.description.contains("ciphertext-fixture") && !info.description.contains("9007199254740999"), "Normal info excludes ciphertext and technical identifiers")
+        check(info.contains(["종류", "텍스트"]) && info.contains(["텍스트 서식", "사용 중"]), "Known type and formatting have readable labels")
+        check(KCMessagePresentation.infoRows(["record": ["type": 1, "message": "secret"]]).contains(["내용", "메시지 내용을 불러오지 못했습니다."]), "Unloaded content never falls back to encrypted record")
+        check(KCMessagePresentation.infoRows(["record": ["type": 2]]) == [["종류", "사진"]], "Photo without caption does not show a misleading empty-text error")
+        check(KCMessagePresentation.infoRows(["record": ["type": 999]]).first == ["종류", "메시지"], "Unknown types have a neutral label")
+        check(KCMessagePresentation.infoRows(["record": ["sentAt": "2026-09-16T01:00:00Z"]]).contains(where: { $0[0] == "보낸 시각" }), "Known native ISO date is formatted for display")
+        check(KCMessagePresentation.infoRows(["record": ["sentAt": "invalid"]]).count == 1, "Invalid dates are omitted")
 
         let receipts = KCReadReceipts.classify(logID: 100, senderID: "1", myID: "2",
             memberIDs: ["1", "2", "3", "4", "5", "6"],
@@ -122,6 +166,20 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         check(history.revisions.map(\.text) == ["original", "edited"], "Keep original and edited versions")
         history = KCHistoryPolicy.merge(history, chatID: "12", logID: "100", senderID: "1", text: "edited", type: 26, now: 4)
         check(history.revisions.count == 3, "Changed message state is a separate revision")
+        var deletedSnapshot: [String: Any] = ["chatID":"12", "logID":"100", "senderID":"1", "record":["type":0x4001]]
+        check(KCHistoryPolicy.preservedText(deletedSnapshot, entry: history)?.text == "edited", "Display the last observed text before native deletion")
+        check(KCHistoryPolicy.preservedText(deletedSnapshot, entry: nil) == nil, "No archive means no invented recovery")
+        deletedSnapshot["logID"] = "101"
+        check(KCHistoryPolicy.preservedText(deletedSnapshot, entry: history) == nil, "Never restore a different message")
+        deletedSnapshot["logID"] = "100"; deletedSnapshot["senderID"] = "2"
+        check(KCHistoryPolicy.preservedText(deletedSnapshot, entry: history) == nil, "Sender identity must also match")
+        deletedSnapshot["senderID"] = "1"; deletedSnapshot["chatID"] = "99"
+        check(KCHistoryPolicy.preservedText(deletedSnapshot, entry: history) == nil, "Never restore another chat's message")
+        deletedSnapshot["chatID"] = "12"
+        for type in [1, 0x4002, 0xc001, 0x10004001, 26] {
+            deletedSnapshot["record"] = ["type":type]
+            check(KCHistoryPolicy.preservedText(deletedSnapshot, entry: history) == nil, "Only the verified plain-text deletion marker is accepted")
+        }
         for index in 0..<40 {
             history = KCHistoryPolicy.merge(history, chatID: "12", logID: "100", senderID: "1", text: "revision \(index)", type: 1, now: Double(index + 5))
         }

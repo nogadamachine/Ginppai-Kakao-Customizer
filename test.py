@@ -13,8 +13,10 @@ with tempfile.TemporaryDirectory(prefix='ginppai-test-') as temp:
                     str(root/'src/ResolverTests.swift'),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
     message=Path(temp)/'message-tests'
+    message_abi=Path(temp)/'message-abi.o'
+    subprocess.run(['xcrun','clang','-fobjc-arc','-O2','-c',str(root/'src/MessageABITests.m'),'-o',str(message_abi)],check=True)
     subprocess.run(['xcrun','swiftc','-module-name','TalkAppBase',str(root/'src/MessageCore.swift'),
-                    str(root/'src/MessageTests.swift'),'-o',str(message)],check=True)
+                    str(root/'src/MessageTests.swift'),str(message_abi),'-o',str(message)],check=True)
     subprocess.run([str(message)],check=True)
     privacy=Path(temp)/'photo-privacy-tests'
     subprocess.run(['xcrun','swiftc',str(root/'src/PhotoPrivacy.swift'),

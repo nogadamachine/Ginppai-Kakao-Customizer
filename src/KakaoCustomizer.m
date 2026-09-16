@@ -20,7 +20,7 @@ static void saveReport(void) {
     pendingWrite = YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         pendingWrite = NO;
-        NSDictionary *report = @{ @"version": @"3.0.0-dev.4", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
+        NSDictionary *report = @{ @"version": @"3.0.0-dev.5", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
             @"configuration": configurationReport(), @"ginppai": ginppaiReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
         NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil];
         NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/KakaoAdBlock-status.json"];
@@ -50,10 +50,10 @@ static NSMutableDictionary *savedOptions;
 static NSDictionary *navigationReport;
 static BOOL countrySupport;
 static NSString *optionsPath(void) { return [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Preferences/KakaoCustomizer.plist"]; }
-static NSArray *toggleKeys(void) { return @[@"hideAds",@"hideShortForm",@"preferOpenChat",@"hideShopping",@"hideCallTab",@"hideTabBadges",@"scrollTopOnRetap",@"quickSettings",@"profilePhotoSave",@"hideTyping",@"messageDetails",@"readReceipts",@"messageHistory",@"uncapChatUnread",@"uncapMessageUnread",@"sendMarkdown",@"forwardLeverage",@"showMobileMessages",@"hideMoreGame",@"hideFriendFeed",@"hideMorePay",@"hideMoreNow",@"hideMoreWeather",@"hideMoreServices",@"hideMoreLinks",@"stripPhotoMetadata",@"externalBrowser",@"disableSentry",@"blockSDKTracking",@"blockTalkShareLog"]; }
+static NSArray *toggleKeys(void) { return @[@"hideAds",@"hideShortForm",@"preferOpenChat",@"hideShopping",@"hideCallTab",@"hideTabBadges",@"scrollTopOnRetap",@"quickSettings",@"profilePhotoSave",@"hideTyping",@"messageDetails",@"readReceipts",@"messageHistory",@"showDeletedMessages",@"uncapChatUnread",@"uncapMessageUnread",@"sendMarkdown",@"forwardLeverage",@"showMobileMessages",@"hideMoreGame",@"hideFriendFeed",@"hideMorePay",@"hideMoreNow",@"hideMoreWeather",@"hideMoreServices",@"hideMoreLinks",@"stripPhotoMetadata",@"externalBrowser",@"disableSentry",@"blockSDKTracking",@"blockTalkShareLog"]; }
 static NSDictionary *defaultOptions(void) {
     return @{@"hideAds":@YES,@"hideShortForm":@YES,@"preferOpenChat":@YES,@"hideShopping":@YES,
-             @"hideCallTab":@NO,@"hideTabBadges":@NO,@"scrollTopOnRetap":@NO,@"quickSettings":@NO,@"profilePhotoSave":@YES,@"hideTyping":@YES,@"messageDetails":@YES,@"readReceipts":@YES,@"messageHistory":@YES,@"uncapChatUnread":@YES,@"uncapMessageUnread":@YES,@"sendMarkdown":@NO,@"forwardLeverage":@NO,@"showMobileMessages":@YES,@"hideMoreGame":@YES,@"hideFriendFeed":@YES,@"hideMorePay":@NO,@"hideMoreNow":@NO,@"hideMoreWeather":@NO,@"hideMoreServices":@NO,@"hideMoreLinks":@NO,@"stripPhotoMetadata":@NO,@"externalBrowser":@YES,@"disableSentry":@YES,@"blockSDKTracking":@YES,@"blockTalkShareLog":@YES,@"countryISO":@"",@"startupTab":@"remember"};
+             @"hideCallTab":@NO,@"hideTabBadges":@NO,@"scrollTopOnRetap":@NO,@"quickSettings":@NO,@"profilePhotoSave":@YES,@"hideTyping":@YES,@"messageDetails":@YES,@"readReceipts":@YES,@"messageHistory":@YES,@"showDeletedMessages":@YES,@"uncapChatUnread":@YES,@"uncapMessageUnread":@YES,@"sendMarkdown":@NO,@"forwardLeverage":@NO,@"showMobileMessages":@YES,@"hideMoreGame":@YES,@"hideFriendFeed":@YES,@"hideMorePay":@NO,@"hideMoreNow":@NO,@"hideMoreWeather":@NO,@"hideMoreServices":@NO,@"hideMoreLinks":@NO,@"stripPhotoMetadata":@NO,@"externalBrowser":@YES,@"disableSentry":@YES,@"blockSDKTracking":@YES,@"blockTalkShareLog":@YES,@"countryISO":@"",@"startupTab":@"remember"};
 }
 static BOOL option(NSString *key) { return [activeOptions[key] boolValue]; }
 static BOOL saveOptions(void) { return [savedOptions writeToFile:optionsPath() atomically:YES]; }
@@ -1034,6 +1034,6 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.0-dev.4 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
+        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.0-dev.5 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
     }
 }

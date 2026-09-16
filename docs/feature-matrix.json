@@ -134,8 +134,8 @@
       "upstreamSources": [
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/interaction/chatlog/BlockModifiedMessageReactionPatch.kt"
       ],
-      "status": "pending",
-      "assessment": "원본을 보존해 보여주는 서버 삭제/가림 메시지의 반응과 두 번 탭 전송을 막는다. 현재 보관함은 읽기 전용이며 채팅 본문 보존 기능은 미구현이다."
+      "status": "prototype",
+      "assessment": "보관한 삭제 원문 말풍선의 두 번 탭 반응과 반응 메뉴를 막는 방어를 추가했다. 실제 삭제 원문 메뉴에는 반응 동작이 없음을 확인했다. 직접 손가락 반응 제스처 시험은 남았다."
     },
     {
       "number": 14,
@@ -144,8 +144,8 @@
       "upstreamSources": [
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/interaction/chatlog/BlockModifiedMessageReplyPatch.kt"
       ],
-      "status": "pending",
-      "assessment": "보존된 서버 삭제/가림 메시지를 답장/댓글 대상으로 보내지 못하게 한다. 채팅 본문 보존 기능과 함께 구현해야 한다."
+      "status": "prototype",
+      "assessment": "보관한 삭제 원문에는 복사와 조회 메뉴가 열리며 기본 답장 항목은 표시되지 않는다. 실제 삭제 이벤트와 메뉴를 확인했다. 스와이프 제스처 경로의 추가 시험은 남았다."
     },
     {
       "number": 15,
@@ -614,8 +614,8 @@
       "upstreamSources": [
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/layout/chatroom/ShowChannelIdPatch.kt"
       ],
-      "status": "prototype",
-      "assessment": "선택 메시지 도구에서 채팅방 ID를 복사한다. upstream의 채팅 설정 및 사이드 제목 진입 위치까지 동일하지는 않다."
+      "status": "omitted",
+      "assessment": "일상 사용에 불필요한 채팅방 식별자 복사 항목은 메시지 메뉴 정리 과정에서 제외했다."
     },
     {
       "number": 62,
@@ -625,7 +625,7 @@
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/interaction/chatlog/ShowDeletedHiddenOrEditedMessagePatch.kt"
       ],
       "status": "prototype",
-      "assessment": "관측한 메시지의 텍스트와 유형 변경을 별도 읽기 전용 보관함에 저장한다. 실제 수정 전후 두 버전 표시와 재실행 후 기록 보존을 확인했다. 채팅 본문 원문 유지, 첨부와 서식 보존, 모든 수신 경로는 미구현이다."
+      "assessment": "보관한 삭제 전 텍스트를 화면용 메시지 객체로 표시한다. iOS 26.1에서 받은 메시지 2개와 보낸 메시지 1개의 실제 삭제, 원래 말풍선과 각 빨간 삭제됨 표시, 옵션 끄기와 재실행을 확인했다. 실제 삭제 기록은 유지한다. 원문 미보관, 사진과 영상 복원은 지원하지 않으며 모든 수신 경로와 긴 대화의 재사용 시험은 남았다."
     },
     {
       "number": 63,
@@ -635,7 +635,7 @@
         "patches/src/main/kotlin/app/revanced/patches/kakaotalk/interaction/chatlog/ShowMessageDetailsPatch.kt"
       ],
       "status": "prototype",
-      "assessment": "선택한 iOS MessageRecord와 해석한 첨부를 JSON으로 표시한다. 나와의 채팅 사진과 3인 대화의 보낸 텍스트에서 표시 및 선택 본문 일치를 확인했다. 임의 계정 객체는 탐색하지 않는다. Android 전체 ChatLog와 필드 및 진입 UI는 다르다."
+      "assessment": "기본 메뉴 첫 행 오른쪽의 메시지 도구에서 내용, 종류와 보낸 시각을 표시한다. 메뉴의 기본 행 수와 높이를 유지해 삭제 항목도 보인다. 받은 삭제 메시지와 보낸 시험 메시지의 본문 및 시각 일치를 기기에서 확인했다."
     },
     {
       "number": 64,

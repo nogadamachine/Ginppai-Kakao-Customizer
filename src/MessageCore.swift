@@ -2,6 +2,9 @@ import Foundation
 import CoreFoundation
 import Darwin
 
+@_silgen_name("KCGinppaiNativeString")
+public func KCGinppaiNativeString(_ text: NSString) -> String { text as String }
+
 // Native iOS implementation. Third-party source attribution is in NOTICE.md.
 // Only the selected message record is reflected. Account stores, credentials,
 // delegates and arbitrary object graphs are never traversed.
@@ -86,6 +89,33 @@ enum KCRecord {
             result["text"] = String(text.prefix(262_144))
         }
         return result
+    }
+}
+
+enum KCMessagePresentation {
+    static func infoRows(_ snapshot: [String: Any]) -> [[String]] {
+        let record = snapshot["record"] as? [String: Any] ?? [:]
+        let kind = (record["type"] as? NSNumber)?.intValue
+        let typeName: String
+        switch kind {
+        case 1, 0x4001: typeName = "텍스트"
+        case 2: typeName = "사진"
+        case 3: typeName = "동영상"
+        default: typeName = "메시지"
+        }
+        var rows = [["종류", typeName]]
+        if snapshot["preservedDeleted"] as? Bool == true { rows.append(["상태", "삭제됨 (기기에 보관된 원문)"]) }
+        if let text = snapshot["text"] as? String, !text.isEmpty { rows.insert(["내용", text], at: 0) }
+        else if kind == 1 { rows.insert(["내용", "메시지 내용을 불러오지 못했습니다."], at: 0) }
+        if let raw = record["sentAt"] as? String, let date = ISO8601DateFormatter().date(from: raw) {
+            let formatter = DateFormatter(); formatter.locale = Locale(identifier: "ko_KR")
+            formatter.dateFormat = "yyyy년 M월 d일 a h:mm:ss"
+            rows.append(["보낸 시각", formatter.string(from: date)])
+        }
+        if let attachment = snapshot["decodedAttachment"] as? [String: Any], attachment["markdown"] as? Bool == true {
+            rows.append(["텍스트 서식", "사용 중"])
+        }
+        return rows
     }
 }
 
@@ -211,6 +241,18 @@ struct KCHistoryRevision: Codable, Equatable {
 enum KCHistoryPolicy {
     static let maxEntries = 5000
     static let maxRevisions = 20
+    static func preservedText(_ snapshot: [String: Any], entry: KCHistoryEntry?) -> KCHistoryRevision? {
+        guard let entry, let record = snapshot["record"] as? [String: Any],
+              let type = (record["type"] as? NSNumber)?.intValue,
+              // Native 26.7.3 deletedMessageMask is bit 14. Only a plain text
+              // deletion is eligible; other flags keep their native treatment.
+              type == (0x4000 | 1),
+              snapshot["chatID"] as? String == entry.chatID,
+              snapshot["logID"] as? String == entry.logID,
+              snapshot["senderID"] as? String == entry.senderID,
+              (Int64(entry.chatID) ?? 0) > 0, (Int64(entry.logID) ?? 0) > 0 else { return nil }
+        return entry.revisions.last { $0.type == 1 && !$0.text.isEmpty }
+    }
     static func attachmentJSON(_ value: Any?) -> String? {
         guard var value else { return nil }
         if var fields = value as? [String: Any] {
@@ -353,6 +395,9 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
         guard allowed.contains(name), let value = KCRecord.field(object, name) else { return nil }
         return value as AnyObject
     }
+    @objc public static func messageInfoRows(_ snapshot: NSDictionary) -> [[String]] {
+        KCMessagePresentation.infoRows(snapshot as? [String: Any] ?? [:])
+    }
     @objc public static func readReceipts(_ input: NSDictionary) -> NSDictionary {
         let rawMembers = input["members"] as? [Any] ?? []
         guard let watermarks = KCReadReceipts.decode(input["watermarks"] ?? [], memberIDs: rawMembers) else {
@@ -455,6 +500,15 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
                 if let attachment = $0.attachment { record["attachment"] = attachment }
                 return record as NSDictionary
             } as NSArray
+        }
+    }
+    @objc public static func preservedText(_ snapshot: NSDictionary) -> NSString? {
+        guard let snapshot = snapshot as? [String: Any], let chatID = snapshot["chatID"] as? String,
+              let logID = snapshot["logID"] as? String else { return nil }
+        return queue.sync {
+            loadEntries()
+            guard lastError == nil else { return nil }
+            return KCHistoryPolicy.preservedText(snapshot, entry: entries?[chatID + ":" + logID])?.text as NSString?
         }
     }
     @objc public static func status() -> NSDictionary {
