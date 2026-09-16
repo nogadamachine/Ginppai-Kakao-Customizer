@@ -204,6 +204,26 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         let media = KCHistoryPolicy.attachmentJSON(["url":"https://example.test/fixture.jpg","w":512])
         let sentMedia = KCHistoryPolicy.attachmentJSON(["url":"https://example.test/fixture.jpg","w":512,"sendingInfo":["progress":1]])
         check(media == sentMedia, "Local send progress never creates an attachment edit")
+        var searchable = KCHistoryPolicy.merge(nil, chatID: "1", logID: "2", senderID: "3", text: String(repeating: "앞", count: 180) + "원본검색", type: 1, now: 1)
+        searchable = KCHistoryPolicy.merge(searchable, chatID: "1", logID: "2", senderID: "3", text: "변경된 내용", type: 1, now: 2)
+        searchable = KCHistoryPolicy.merge(searchable, chatID: "1", logID: "2", senderID: "3", text: "", type: 0x4001, now: 3)
+        check(KCHistoryPolicy.searchRows([searchable], query: " 원본검색 ").count == 1, "Search reaches past preview length and into original revisions")
+        let foundPreview = KCHistoryPolicy.searchRows([searchable], query: "원본검색").first?["preview"] as? String
+        check(foundPreview?.contains("원본검색") == true, "Search preview includes the actual match beyond character 160")
+        check(KCHistoryPolicy.searchRows([searchable], query: "변경된").count == 1, "Search also finds edited revisions")
+        let currentRows = KCHistoryPolicy.searchRows([searchable], query: "")
+        check(currentRows[0]["preview"] as? String == "변경된 내용" && currentRows[0]["deleted"] as? Bool == true, "Archive shows latest preserved text and deleted state")
+        check(KCHistoryPolicy.searchRows([searchable], query: "missing").isEmpty, "Search has an explicit no-results state")
+        var archive: [KCHistoryEntry] = []
+        for index in 0..<520 {
+            let body: String = index == 0 ? "oldest needle" : "ordinary"
+            let item = KCHistoryPolicy.merge(nil, chatID: "1", logID: String(index + 10), senderID: "3", text: body, type: 1, now: Double(index))
+            archive.append(item)
+        }
+        check(KCHistoryPolicy.searchRows(archive, query: "needle").count == 1, "Search scans all archived entries before limiting display")
+        let page = KCHistoryPolicy.searchRows(archive, query: "")
+        let newestID = page.first?["logID"] as? String
+        check(page.count == 500 && newestID == "529", "Display stays bounded and sorts newest first")
         print("Message policy tests: \(passed) passed")
     }
 }

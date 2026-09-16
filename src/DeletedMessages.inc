@@ -12,9 +12,11 @@ static void __attribute__((swiftcall)) (*ginppaiSetMessageRecord)(KCNativeMessag
 static const char ginppaiDeletedDisplayTextKey;
 static const char ginppaiDeletedLabelKey;
 static const char ginppaiDeletedUnreadKey;
+static const char ginppaiDeletedGesturesKey;
 
 static NSString *ginppaiPreservedMessage(id message) {
     if(!message || !option(@"showDeletedMessages") || !ginppaiNativeBuildVerified)return nil;
+    NSString *cached=objc_getAssociatedObject(message,&ginppaiDeletedDisplayTextKey);if(cached)return cached;
     if(ginppaiOriginalMessageType && [message isKindOfClass:NSClassFromString(@"TalkAppBase.ChatMessage")] && ginppaiOriginalMessageType((__bridge void *)message)!=0x4001)return nil;
     NSDictionary *snapshot=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"snapshot:"),message);
     if([snapshot[@"record"][@"type"] integerValue]!=0x4001)return nil;
@@ -92,6 +94,18 @@ static void ginppaiClearDeletedLabel(UITableViewCell *cell) {
     UILabel *badge=objc_getAssociatedObject(cell,&ginppaiDeletedLabelKey);badge.hidden=YES;
     for(UIView *label in objc_getAssociatedObject(cell,&ginppaiDeletedUnreadKey))label.hidden=NO;
     objc_setAssociatedObject(cell,&ginppaiDeletedUnreadKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    for(UIGestureRecognizer *gesture in objc_getAssociatedObject(cell,&ginppaiDeletedGesturesKey))gesture.enabled=YES;
+    objc_setAssociatedObject(cell,&ginppaiDeletedGesturesKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+}
+static void ginppaiDisableDeletedActions(UIView *view,NSMutableArray *disabled) {
+    // Restrict only this read-only text cell. Ancestor table scrolling and
+    // long-press copy remain intact; reuse restores only gestures we disabled.
+    for(UIGestureRecognizer *gesture in view.gestureRecognizers) {
+        BOOL doubleTap=[gesture isKindOfClass:UITapGestureRecognizer.class] && ((UITapGestureRecognizer *)gesture).numberOfTapsRequired==2;
+        BOOL swipe=[gesture isKindOfClass:UIPanGestureRecognizer.class] || [gesture isKindOfClass:UISwipeGestureRecognizer.class];
+        if(gesture.enabled && (doubleTap || swipe)){[disabled addObject:gesture];gesture.enabled=NO;}
+    }
+    for(UIView *child in view.subviews)ginppaiDisableDeletedActions(child,disabled);
 }
 static void ginppaiUpdateDeletedLabel(UITableViewCell *cell) {
     UILabel *badge=objc_getAssociatedObject(cell,&ginppaiDeletedLabelKey);
@@ -100,6 +114,9 @@ static void ginppaiUpdateDeletedLabel(UITableViewCell *cell) {
     UIView *status=text?ginppaiStatusInBubble(cell):nil;
     UILabel *time=status?ginppaiTimestampInStatus(status):nil;
     if(!status || !cell.window){ginppaiClearDeletedLabel(cell);return;}
+    NSMutableArray *disabled=[objc_getAssociatedObject(cell,&ginppaiDeletedGesturesKey) mutableCopy]?:[NSMutableArray new];
+    ginppaiDisableDeletedActions(cell,disabled);
+    objc_setAssociatedObject(cell,&ginppaiDeletedGesturesKey,disabled,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     NSMutableArray *unread=[objc_getAssociatedObject(cell,&ginppaiDeletedUnreadKey) mutableCopy]?:[NSMutableArray new];ginppaiHideDeletedUnread(status,time,unread);
     objc_setAssociatedObject(cell,&ginppaiDeletedUnreadKey,unread,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     if(!badge){badge=[UILabel new];badge.text=@"삭제됨";badge.textColor=UIColor.systemRedColor;
@@ -118,7 +135,7 @@ static void ginppaiUpdateDeletedLabel(UITableViewCell *cell) {
 }
 static void ginppaiInstallDeletedMessages(void) {
     ginppaiCapabilities[@"showDeletedMessages"]=@NO;
-    if(!ginppaiNativeBuildVerified || !option(@"showDeletedMessages"))return;
+    if(!ginppaiNativeBuildVerified)return;
     Class message=NSClassFromString(@"KakaoTalk.TextMessage");if(!message)return;
     const NSUInteger offsets[]={0x1e0,0x1f8,0x408,0x170,0x178};
     const uintptr_t addresses[]={0x10461fea8,0x10461feec,0x104621174,0x10461fc74,0x10461fca8};
@@ -137,6 +154,8 @@ static void ginppaiInstallDeletedMessages(void) {
     SEL cellSel=NSSelectorFromString(@"tableView:cellForRowAtIndexPath:");Method cell=class_getInstanceMethod(controller,cellSel);
     SEL heightSel=NSSelectorFromString(@"tableView:heightForRowAtIndexPath:");Method height=class_getInstanceMethod(controller,heightSel);
     if(!cell || !height)return;
+    ginppaiCapabilities[@"showDeletedMessages"]=@YES;
+    if(!option(@"showDeletedMessages"))return;
     ginppaiOriginalMessageAtIndex=fetchOriginal;
     ginppaiOriginalMessageType=(void *)(addresses[0]+ginppaiImageSlide);
     ginppaiOriginalMessageText=(void *)(addresses[1]+ginppaiImageSlide);
@@ -184,7 +203,7 @@ static void ginppaiInstallDeletedMessages(void) {
             SEL sel=NSSelectorFromString(name);Method m=class_getInstanceMethod(handler,sel);if(!m || method_getNumberOfArguments(m)!=3)continue;
             char type[8];method_getReturnType(m,type,sizeof(type));if(type[0]!='B')continue;IMP original=method_getImplementation(m);
             replace(handler,sel,imp_implementationWithBlock(^BOOL(id self,id value){
-                if(ginppaiPreservedMessage(ginppaiCall(self,@"message")))return NO;
+                if(ginppaiPreservedMessage(ginppaiCall(self,@"message"))){event(@"ginppai.deleted.actionBlocked");return YES;}
                 return ((BOOL(*)(id,SEL,id))original)(self,sel,value);
             }),method_getTypeEncoding(m));
         }

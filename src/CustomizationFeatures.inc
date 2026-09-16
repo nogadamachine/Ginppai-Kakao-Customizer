@@ -172,7 +172,9 @@ static NSString *ginppaiReceiptText(NSDictionary *result) {
     NSArray *keys=@[@"read",@"unread",@"unknown"],*titles=@[@"읽음",@"읽지 않음",@"확인 불가"];
     for(NSUInteger i=0;i<keys.count;i++) {
         NSArray *ids=result[keys[i]];[text appendFormat:@"%@ (%lu)\n",titles[i],(unsigned long)ids.count];
-        for(NSString *uid in ids)[text appendFormat:@"%@\n",result[@"names"][uid]?:[NSString stringWithFormat:@"사용자 ID %@",uid]];
+        NSUInteger unnamed=0;
+        for(NSString *uid in ids){NSString *name=result[@"names"][uid];if(name.length)[text appendFormat:@"%@\n",name];else unnamed++;}
+        if(unnamed)[text appendFormat:@"이름 확인 불가 %lu명\n",(unsigned long)unnamed];
         [text appendString:@"\n"];
     }
     if([result[@"missingMembers"] integerValue]>0)[text appendFormat:@"목록에 없는 참여자: %@명\n",result[@"missingMembers"]];
@@ -191,28 +193,48 @@ static void ginppaiShowHistory(NSDictionary *snapshot,UIView *anchor) {
 }
 
 @interface KCMessageHistoryListController : UITableViewController <UISearchResultsUpdating>
-@property(nonatomic,strong) NSArray *entries;
 @property(nonatomic,strong) NSArray *filtered;
 @property(nonatomic,strong) UISearchController *search;
+@property(nonatomic) NSUInteger searchRevision;
 @end
 @implementation KCMessageHistoryListController
 - (void)viewDidLoad {
     [super viewDidLoad];self.title=@"메시지 보관함";
-    self.entries=((id(*)(id,SEL))objc_msgSend)(NSClassFromString(@"KCMessageHistory"),NSSelectorFromString(@"recentEntries"))?:@[];self.filtered=self.entries;
-    self.search=[[UISearchController alloc] initWithSearchResultsController:nil];self.search.searchResultsUpdater=self;self.search.obscuresBackgroundDuringPresentation=NO;
-    self.search.searchBar.placeholder=@"보관한 내용 검색";self.navigationItem.searchController=self.search;self.definesPresentationContext=YES;
+    self.tableView.rowHeight=UITableViewAutomaticDimension;self.tableView.estimatedRowHeight=80;
+    self.tableView.keyboardDismissMode=UIScrollViewKeyboardDismissModeOnDrag;
+    self.search=[[UISearchController alloc] initWithSearchResultsController:nil];self.search.searchResultsUpdater=self;
+    self.search.obscuresBackgroundDuringPresentation=NO;self.search.searchBar.placeholder=@"원문과 변경 기록 전체 검색";
+    self.navigationItem.searchController=self.search;self.navigationItem.hidesSearchBarWhenScrolling=NO;self.definesPresentationContext=YES;
 }
+- (void)viewWillAppear:(BOOL)animated {[super viewWillAppear:animated];[self updateSearchResultsForSearchController:self.search];}
 - (void)updateSearchResultsForSearchController:(UISearchController *)search {
-    NSString *query=search.searchBar.text?:@"";
-    self.filtered=query.length?[self.entries filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary *entry,NSDictionary *bindings){return [entry[@"preview"] localizedCaseInsensitiveContainsString:query];}]]:self.entries;
-    [self.tableView reloadData];
+    NSString *query=search.searchBar.text?:@"";NSUInteger revision=++self.searchRevision;
+    __weak KCMessageHistoryListController *weakSelf=self;
+    ((void(*)(id,SEL,id,id))objc_msgSend)(NSClassFromString(@"KCMessageHistory"),NSSelectorFromString(@"searchEntries:completion:"),query,^(NSArray *rows){
+        KCMessageHistoryListController *strong=weakSelf;if(!strong || strong.searchRevision!=revision)return;
+        strong.filtered=rows;
+        NSDictionary *status=((id(*)(id,SEL))objc_msgSend)(NSClassFromString(@"KCMessageHistory"),NSSelectorFromString(@"status"));
+        NSString *error=status[@"error"];
+        if(!rows.count || error.length){
+            UILabel *label=[UILabel new];label.numberOfLines=0;label.textAlignment=NSTextAlignmentCenter;
+            label.font=[UIFont preferredFontForTextStyle:UIFontTextStyleBody];label.adjustsFontForContentSizeCategory=YES;
+            label.textColor=UIColor.secondaryLabelColor;
+            label.text=error.length?error:(query.length?@"검색 결과가 없습니다.\n다른 단어로 검색해 보세요.":@"아직 보관된 메시지가 없습니다.\n기록 기능을 켠 뒤 확인한 내용부터 남습니다.");
+            strong.tableView.backgroundView=label;
+        }else strong.tableView.backgroundView=nil;
+        [strong.tableView reloadData];
+    });
 }
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {return self.filtered.count;}
-- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {return @"최근 보관한 메시지 최대 500개를 표시합니다. 기기에서 기록한 원문과 변경 내용을 확인하는 읽기 전용 보관함입니다.";}
+- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
+    return [NSString stringWithFormat:@"%lu개 표시 / 최근 500개까지 표시합니다.",(unsigned long)self.filtered.count];
+}
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
-    NSDictionary *entry=self.filtered[index.row];UITableViewCell *cell=[[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
+    NSDictionary *entry=self.filtered[index.row];UITableViewCell *cell=customizationCell();
     cell.textLabel.text=[entry[@"preview"] length]?entry[@"preview"]:@"텍스트 없는 메시지";cell.textLabel.numberOfLines=2;
-    cell.detailTextLabel.text=[NSString stringWithFormat:@"기록 %@개",entry[@"revisions"]];cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;return cell;
+    NSString *date=[NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:[entry[@"observedAt"] doubleValue]] dateStyle:NSDateFormatterShortStyle timeStyle:NSDateFormatterShortStyle];
+    cell.detailTextLabel.text=[NSString stringWithFormat:@"%@ / 기록 %@개%@",date,entry[@"revisions"],[entry[@"deleted"] boolValue]?@" / 삭제됨":@""];
+    cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;return cell;
 }
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)index {
     [table deselectRowAtIndexPath:index animated:YES];ginppaiShowHistory(self.filtered[index.row],self.view);

@@ -2,7 +2,7 @@
 static NSArray<NSDictionary *> *customizationGroups(void) {
     return @[
       @{@"title":@"화면",@"icon":@"rectangle.3.group",@"summary":@"광고와 하단 탭 정리",@"rows":@[
-        @[@"hideAds",@"광고 자리 비우기",@"지원되는 광고를 차단하고 친구 목록의 특별한 친구 프로모션 영역을 숨깁니다."],
+        @[@"hideAds",@"광고와 프로모션 숨기기",@"지원되는 광고를 차단하고 친구 목록의 특별한 친구 프로모션 영역을 숨깁니다."],
         @[@"hideShortForm",@"숏폼 없이 사용",@"숏폼을 숨기고 오픈채팅 목록을 바로 엽니다."],
         @[@"preferOpenChat",@"오픈채팅 먼저 보기",@"지금 탭을 열 때 오픈채팅 목록부터 표시합니다."],
         @[@"hideShopping",@"쇼핑 탭 숨기기",@"하단 메뉴에서 쇼핑을 뺍니다."],
@@ -21,7 +21,7 @@ static NSArray<NSDictionary *> *customizationGroups(void) {
         @[@"uncapChatUnread",@"채팅 목록의 숫자 끝까지 표시",@"300+ 대신 기기가 가진 실제 안 읽은 메시지 수를 사용합니다."],
         @[@"uncapMessageUnread",@"안 읽은 사람 수 끝까지 표시",@"메시지 옆 사람 수를 99명에서 잘라내지 않습니다."],
         @[@"showMobileMessages",@"보조 기기에서도 메시지 보기",@"모바일 전용 안내로 가려진 메시지 표시를 확장합니다. 잠금과 연령 조건은 유지됩니다."],
-        @[@"sendMarkdown",@"텍스트 서식 보내기",@"**굵게** 같은 마크다운 서식을 붙여 보냅니다. 현재 메시지를 수정하면 서식이 풀릴 수 있습니다."],
+        @[@"sendMarkdown",@"새 메시지에 텍스트 서식 사용",@"새 텍스트에 **굵게** 같은 서식을 붙여 보냅니다. 카카오톡 26.7.3에서 메시지를 수정하면 서식이 풀립니다."],
         @[@"forwardLeverage",@"공유 카드 전달 범위 넓히기",@"전달 가능한 링크 카드의 범위를 확장합니다. 메시지 종류에 따라 동작이 다를 수 있습니다."]]},
       @{@"title":@"사진과 영상",@"icon":@"photo.on.rectangle",@"summary":@"프로필 원본 저장과 촬영 정보 정리",@"rows":@[
         @[@"profilePhotoSave",@"프로필에 저장 버튼 표시",@"현재와 이전 프로필, 배경의 원본 사진과 영상을 사진 앱에 저장합니다."],
@@ -109,7 +109,7 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 - (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
     if(section==0)return @"필요한 기능만 골라 사용하세요. 변경값은 자동 저장되고, 적용 후 카카오톡을 다시 실행하면 반영됩니다.";
     if(section==1)return @"기능을 켠 뒤 기기에서 확인한 내용만 남습니다. 받기 전에 지워진 메시지는 복원할 수 없습니다.";
-    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0-dev.5\nKakaoTalk 26.7.3\nMade by nogadamachine\n개발판에는 아직 기기 검증 중인 기능이 포함되어 있습니다.";
+    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0\nKakaoTalk 26.7.3\nMade by nogadamachine\n지원 범위와 설치 안내는 긴빠이 Repo에서 확인하세요.";
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
@@ -165,6 +165,8 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
     if(!overseas(savedOptions) && [key isEqualToString:@"hideCallTab"])unavailable=@"별도 통화 탭이 있는 해외 화면에서 사용할 수 있습니다.";
     if([key isEqualToString:@"preferOpenChat"] && [savedOptions[@"hideShortForm"] boolValue] && !overseas(savedOptions)){unavailable=@"숏폼 없이 사용 중에는 오픈채팅이 항상 먼저 열립니다.";toggle.on=YES;}
     if([@[@"uncapMessageUnread",@"sendMarkdown",@"forwardLeverage",@"showMobileMessages",@"hideMoreGame",@"hideFriendFeed",@"hideMorePay",@"hideMoreNow",@"hideMoreWeather",@"hideMoreServices",@"hideMoreLinks",@"blockTalkShareLog"] containsObject:key] && ![ginppaiCapabilities[key] boolValue])unavailable=@"현재 설치에서는 이 기능을 사용할 수 없습니다. 설치 안내에서 지원 조건을 확인해 주세요.";
+    if([key isEqualToString:@"showDeletedMessages"] && ![ginppaiCapabilities[key] boolValue])unavailable=@"현재 카카오톡 버전에서는 삭제 원문 표시를 지원하지 않습니다.";
+    if([@[@"messageDetails",@"readReceipts"] containsObject:key] && ![ginppaiCapabilities[@"messageContextMenu"] boolValue])unavailable=@"현재 카카오톡 버전에서는 메시지 도구를 지원하지 않습니다.";
     if(overseas(savedOptions) && [@[@"hideMorePay",@"hideMoreNow",@"hideMoreWeather",@"hideMoreServices",@"hideMoreLinks"] containsObject:key])unavailable=@"한국 더보기 화면에서 적용됩니다. 해외 화면에서는 저장한 값을 유지합니다.";
     if([key isEqualToString:@"hideMoreLinks"] && [savedOptions[@"hideMoreServices"] boolValue]){unavailable=@"서비스 모음 숨기기에 포함되어 있습니다.";toggle.on=YES;}
     if(unavailable){toggle.enabled=NO;cell.detailTextLabel.text=unavailable;cell.textLabel.textColor=UIColor.secondaryLabelColor;}

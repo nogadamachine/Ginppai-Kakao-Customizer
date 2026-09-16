@@ -253,6 +253,23 @@ enum KCHistoryPolicy {
               (Int64(entry.chatID) ?? 0) > 0, (Int64(entry.logID) ?? 0) > 0 else { return nil }
         return entry.revisions.last { $0.type == 1 && !$0.text.isEmpty }
     }
+    static func searchPreview(_ text: String, query: String) -> String {
+        guard !query.isEmpty, let match = text.range(of: query, options: [.caseInsensitive, .diacriticInsensitive]) else { return String(text.prefix(160)) }
+        let start = text.index(match.lowerBound, offsetBy: -12, limitedBy: text.startIndex) ?? text.startIndex
+        let end = text.index(start, offsetBy: 160, limitedBy: text.endIndex) ?? text.endIndex
+        return (start > text.startIndex ? "..." : "") + String(text[start..<end]) + (end < text.endIndex ? "..." : "")
+    }
+    static func searchRows(_ entries: [KCHistoryEntry], query: String, limit: Int = 500) -> [[String: Any]] {
+        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return entries.sorted { $0.observedAt > $1.observedAt }.compactMap { entry -> [String: Any]? in
+            let selected = query.isEmpty ? entry.revisions.last(where: { $0.type == 1 && !$0.text.isEmpty }) ?? entry.revisions.first
+                : entry.revisions.last(where: { $0.text.localizedCaseInsensitiveContains(query) })
+            guard query.isEmpty || selected != nil else { return nil }
+            return ["chatID": entry.chatID, "logID": entry.logID, "senderID": entry.senderID,
+                    "preview": searchPreview(selected?.text ?? "", query: query), "revisions": entry.revisions.count,
+                    "observedAt": entry.observedAt, "deleted": entry.revisions.last?.type == 0x4001]
+        }.prefix(max(0, limit)).map { $0 }
+    }
     static func attachmentJSON(_ value: Any?) -> String? {
         guard var value else { return nil }
         if var fields = value as? [String: Any] {
@@ -515,13 +532,13 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
         queue.sync { loadEntries(); return ["messageCount": entries?.count ?? 0, "error": lastError ?? ""] }
     }
     @objc public static func recentEntries() -> NSArray {
-        queue.sync {
+        queue.sync { loadEntries(); return KCHistoryPolicy.searchRows(Array((entries ?? [:]).values), query: "") as NSArray }
+    }
+    @objc public static func searchEntries(_ query: String, completion: @escaping (NSArray) -> Void) {
+        queue.async {
             loadEntries()
-            return (entries ?? [:]).values.sorted { $0.observedAt > $1.observedAt }.prefix(500).map {
-                ["chatID": $0.chatID, "logID": $0.logID, "senderID": $0.senderID,
-                 "preview": String(($0.revisions.first?.text ?? "").prefix(160)),
-                 "revisions": $0.revisions.count, "observedAt": $0.observedAt] as NSDictionary
-            } as NSArray
+            let rows = KCHistoryPolicy.searchRows(Array((entries ?? [:]).values), query: query) as NSArray
+            DispatchQueue.main.async { completion(rows) }
         }
     }
 }

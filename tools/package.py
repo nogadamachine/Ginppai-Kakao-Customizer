@@ -16,6 +16,9 @@ if not dylib.is_file():
     raise SystemExit('Run python3 build.py first.')
 if not shutil.which('dpkg-deb'):
     raise SystemExit('Install dpkg (macOS: brew install dpkg).')
+source_id = hashlib.sha256(b''.join(p.read_bytes() for p in sorted((ROOT/'src').glob('*')) if p.suffix in ['.m', '.inc', '.swift'])).hexdigest()[:16]
+if source_id.encode() not in dylib.read_bytes() or config['version'].encode() not in dylib.read_bytes():
+    raise SystemExit('Source or version changed. Rebuild before packaging.')
 dist = ROOT/'dist'
 dist.mkdir(exist_ok=True)
 shutil.copy2(dylib, dist/config['dylib'])

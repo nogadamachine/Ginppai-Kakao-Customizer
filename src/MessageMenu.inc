@@ -76,7 +76,7 @@ static void ginppaiMessageMenu(NSDictionary *snapshot,UIView *anchor) {
 
 static KCMessageMenuContext *ginppaiNativeMenuContext(id container) {
     KCMessageMenuContext *context=objc_getAssociatedObject(container,&ginppaiMenuContextKey);
-    if(!context && ginppaiPendingMenu) {
+    if(ginppaiPendingMenu && context!=ginppaiPendingMenu) {
         context=ginppaiPendingMenu;context.container=container;
         objc_setAssociatedObject(container,&ginppaiMenuContextKey,context,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     }
@@ -114,7 +114,7 @@ static void ginppaiAttachMessageMenu(id container,UITableView *table,UITableView
 
 static void ginppaiInstallMessageMenu(void) {
     ginppaiCapabilities[@"messageContextMenu"]=@NO;
-    if(!ginppaiNativeBuildVerified || !ginppaiHasMessageTools())return;
+    if(!ginppaiNativeBuildVerified)return;
     Class menu=NSClassFromString(@"KakaoTalk.TalkContextMenuContainer");
     SEL rows=NSSelectorFromString(@"tableView:numberOfRowsInSection:");Method rowMethod=class_getInstanceMethod(menu,rows);
     if(!rowMethod || method_getNumberOfArguments(rowMethod)!=4)return;
@@ -125,6 +125,7 @@ static void ginppaiInstallMessageMenu(void) {
             SEL sel=NSSelectorFromString(selector);Method m=class_getInstanceMethod(cls,sel);
             if(!m || method_getNumberOfArguments(m)!=4)continue;IMP original=method_getImplementation(m);
             replace(cls,sel,imp_implementationWithBlock(^(id self,id gesture,UIView *view){
+                if(!ginppaiHasMessageTools()){((void(*)(id,SEL,id,id))original)(self,sel,gesture,view);return;}
                 event(@"ginppai.menu.nativeEntry");
                 KCMessageMenuContext *previous=ginppaiPendingMenu;id message=ginppaiCall(self,@"message");
                 NSDictionary *snapshot=ginppaiSnapshot(message);

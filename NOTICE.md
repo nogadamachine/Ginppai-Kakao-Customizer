@@ -1,6 +1,6 @@
 # 저작권 및 참조 코드
 
-Ginppai-Kakao-Customizer의 3.0 개발판 전체 배포에는 GNU General Public License version 3을 적용합니다. 라이선스 전문은 LICENSE에 있습니다.
+Ginppai-Kakao-Customizer의 3.0 전체 배포에는 GNU General Public License version 3을 적용합니다. 라이선스 전문은 LICENSE에 있습니다.
 
 2.3.2까지의 Ginppai 코드에 적용된 원래 MIT 저작권과 허가 문구는 COPYING.MIT에 보존했습니다. 이전에 MIT로 공개된 버전의 라이선스를 소급 변경하지 않습니다.
 
