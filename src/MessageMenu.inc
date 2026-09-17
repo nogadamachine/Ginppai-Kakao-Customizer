@@ -112,6 +112,31 @@ static void ginppaiAttachMessageMenu(id container,UITableView *table,UITableView
     cell.accessoryView=button;event(@"ginppai.menu.nativeAttached");
 }
 
+// Gesture recognizers send one-argument actions. Their native Swift bodies
+// can call the two-argument implementation directly, bypassing ObjC dispatch.
+// Capture the selected message at both entry points, keeping nested calls scoped.
+static void ginppaiWithNativeMenuContext(id handler,id gesture,UIView *view,dispatch_block_t invokeNative) {
+    if(!ginppaiHasMessageTools()){invokeNative();return;}
+    event(@"ginppai.menu.nativeEntry");
+    KCMessageMenuContext *previous=ginppaiPendingMenu;id message=ginppaiCall(handler,@"message");
+    NSDictionary *snapshot=ginppaiSnapshot(message);
+    NSString *preserved=ginppaiPreservedMessage(message);
+    if(preserved && [view isKindOfClass:UIView.class] && view.window) {
+        if([gesture isKindOfClass:UIGestureRecognizer.class]) {
+            UIGestureRecognizerState wanted=[gesture isKindOfClass:UILongPressGestureRecognizer.class]?UIGestureRecognizerStateBegan:UIGestureRecognizerStateRecognized;
+            if(((UIGestureRecognizer *)gesture).state!=wanted)return;
+        }
+        NSMutableDictionary *display=[snapshot mutableCopy];display[@"text"]=preserved;display[@"preservedDeleted"]=@YES;
+        ginppaiMessageMenu(display,view);event(@"ginppai.deleted.menu");return;
+    }
+    if(snapshot && [view isKindOfClass:UIView.class] && view.window) {
+        KCMessageMenuContext *context=[KCMessageMenuContext new];context.snapshot=snapshot;context.anchor=view;ginppaiPendingMenu=context;
+        ginppaiObserve(message);event(@"ginppai.menu.nativeInvoked");
+    } else {ginppaiPendingMenu=nil;event(snapshot?@"ginppai.menu.noVisibleAnchor":@"ginppai.menu.noSnapshot");}
+    @try {invokeNative();}
+    @finally {ginppaiPendingMenu=previous;}
+}
+
 static void ginppaiInstallMessageMenu(void) {
     ginppaiCapabilities[@"messageContextMenu"]=@NO;
     if(!ginppaiNativeBuildVerified)return;
@@ -121,29 +146,19 @@ static void ginppaiInstallMessageMenu(void) {
     NSUInteger hooked=0;
     for(NSString *name in @[@"KakaoTalk.ChatMessageCellViewSubmenuHandler",@"KakaoTalk.ChatMessageCellViewMimicSubmenuHandler"]) {
         Class cls=NSClassFromString(name);
+        for(NSString *selector in @[@"invokeSubmenuAction:",@"invokeSubmenuActionByTap:"]) {
+            SEL sel=NSSelectorFromString(selector);Method m=class_getInstanceMethod(cls,sel);
+            if(!m || strcmp(method_getTypeEncoding(m),"v24@0:8@16"))continue;IMP original=method_getImplementation(m);
+            replace(cls,sel,imp_implementationWithBlock(^(id self,id gesture){
+                UIView *view=[gesture isKindOfClass:UIGestureRecognizer.class]?((UIGestureRecognizer *)gesture).view:nil;
+                ginppaiWithNativeMenuContext(self,gesture,view,^{((void(*)(id,SEL,id))original)(self,sel,gesture);});
+            }),method_getTypeEncoding(m));hooked++;
+        }
         for(NSString *selector in @[@"invokeSubmenuAction:withTargetView:",@"invokeSubmenuActionByTap:withTargetView:"]) {
             SEL sel=NSSelectorFromString(selector);Method m=class_getInstanceMethod(cls,sel);
-            if(!m || method_getNumberOfArguments(m)!=4)continue;IMP original=method_getImplementation(m);
+            if(!m || strcmp(method_getTypeEncoding(m),"v32@0:8@16@24"))continue;IMP original=method_getImplementation(m);
             replace(cls,sel,imp_implementationWithBlock(^(id self,id gesture,UIView *view){
-                if(!ginppaiHasMessageTools()){((void(*)(id,SEL,id,id))original)(self,sel,gesture,view);return;}
-                event(@"ginppai.menu.nativeEntry");
-                KCMessageMenuContext *previous=ginppaiPendingMenu;id message=ginppaiCall(self,@"message");
-                NSDictionary *snapshot=ginppaiSnapshot(message);
-                NSString *preserved=ginppaiPreservedMessage(message);
-                if(preserved && [view isKindOfClass:UIView.class] && view.window) {
-                    if([gesture isKindOfClass:UIGestureRecognizer.class]) {
-                        UIGestureRecognizerState wanted=[gesture isKindOfClass:UILongPressGestureRecognizer.class]?UIGestureRecognizerStateBegan:UIGestureRecognizerStateRecognized;
-                        if(((UIGestureRecognizer *)gesture).state!=wanted)return;
-                    }
-                    NSMutableDictionary *display=[snapshot mutableCopy];display[@"text"]=preserved;display[@"preservedDeleted"]=@YES;
-                    ginppaiMessageMenu(display,view);event(@"ginppai.deleted.menu");return;
-                }
-                if(snapshot && [view isKindOfClass:UIView.class] && view.window) {
-                    KCMessageMenuContext *context=[KCMessageMenuContext new];context.snapshot=snapshot;context.anchor=view;ginppaiPendingMenu=context;
-                    ginppaiObserve(message);event(@"ginppai.menu.nativeInvoked");
-                } else {ginppaiPendingMenu=nil;event(snapshot?@"ginppai.menu.noVisibleAnchor":@"ginppai.menu.noSnapshot");}
-                @try {((void(*)(id,SEL,id,id))original)(self,sel,gesture,view);}
-                @finally {ginppaiPendingMenu=previous;}
+                ginppaiWithNativeMenuContext(self,gesture,view,^{((void(*)(id,SEL,id,id))original)(self,sel,gesture,view);});
             }),method_getTypeEncoding(m));hooked++;
         }
     }

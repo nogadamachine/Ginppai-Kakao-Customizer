@@ -1,5 +1,5 @@
 {
-  "version": "3.0.0",
+  "version": "3.0.1",
   "status": "stable-for-documented-environment",
   "upstream_version": "v1.5.0-dev.9",
   "upstream_commit": "70f43985acdb0f9fe49d5cda0b88676583aca2d1",
@@ -7,7 +7,7 @@
   "release_ready": true,
   "latest_source_build": "passed: arm64 iOS 17 minimum",
   "native_callback_device_execution": "passed after LiveContainer patch revision reset and re-sign",
-  "device_current_version": "3.0.0 build 067c1778589884b8",
+  "device_current_version": "3.0.1 build 1168753ca4a55512",
   "jailbreak_device_test": "not performed",
   "sidestore_direct_install_device_test": "not performed",
   "stable_version_evidence": "validation-2.3.2.json",
@@ -16,7 +16,7 @@
   "native_message_save_callback_observed": true,
   "message_snapshot_observed": true,
   "message_details_ui": "Readable body, type and timestamp rows verified on self-chat text. Raw record JSON and primary chat-ID copy entry removed.",
-  "message_tools_button": "Native first-row accessory adds no menu height. Correct sent/deleted context and all native actions verified through native-handler UI fixtures. No per-bubble info buttons.",
+  "message_tools_button": "3.0.1: fixed missing one-argument gesture entry points. Native long-press and tap callback fixtures showed the first-row accessory and all original actions. Selected normal and preserved-deleted message details matched. See menu-entry-fix.md.",
   "sdk_tracker_block": "one intercepted request observed",
   "read_receipts_ui": "passed: self chat read 1; three-person group read 3, unread 0, unknown 0; names shown including self label",
   "read_receipt_native_analysis": "readMarks and activeMemberIDs Int64 arrays share index, confirmed in exact 26.7.3 native updater",
@@ -97,5 +97,14 @@
   },
   "settings_reenable": "Passed on device: started with deleted-display option off, setting remained available, enabled it in UI and applied/restarted; all three preserved deleted bubbles returned.",
   "release_gate": "Passed: 188 local cases, final production-only device launch/readback, exact source build identity, strict codesign, both DEB payloads/filters, ZIP manifest and SHA256. Unverified environments remain listed explicitly.",
-  "archive_final_ui": "Final production-only build showed complete compact footer, dates and revision counts, with no QA controls."
+  "archive_final_ui": "Final production-only build showed complete compact footer, dates and revision counts, with no QA controls.",
+  "message_menu_regression": {
+    "before": "3.0.0 opened the native menu through invokeSubmenuAction: but never entered the tweak hook",
+    "after": "3.0.1 entered the hook, added Message Tools, and opened read receipts through the same one-argument route",
+    "fixture": "Native visible text-view anchor and synthetic recognizer state on a physical iPhone; not a physical finger gesture",
+    "received_read_receipts": "Displayed read 2, unread 0, unknown 0. One participant name unavailable in local data.",
+    "tap_entry": "invokeSubmenuActionByTap: displayed native accessory and matching message details",
+    "deleted_entry": "invokeSubmenuAction: opened preserved-original tools and matching deleted message details",
+    "new_messages_sent": false
+  }
 }

@@ -1,13 +1,13 @@
 {
   "name": "Ginppai-Kakao-Customizer",
   "id": "com.nogadamachine.ginppai.kakaocustomizer",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "dylib": "GinppaiKakaoCustomizer.dylib",
   "minOS": "17.0",
   "description": "Personalize KakaoTalk with Ginppai: tabs, messages, original media saving and privacy controls.",
   "homepage": "https://github.com/nogadamachine/Ginppai-Kakao-Customizer",
   "depiction": "https://nogadamachine.github.io/Ginppai-Repo/depictions/customizer.html",
-  "debVersion": "3.0.0",
+  "debVersion": "3.0.1",
   "license": "GPL-3.0-only",
   "releaseStatus": "stable"
 }
