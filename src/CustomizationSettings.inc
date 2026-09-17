@@ -109,7 +109,7 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 - (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {
     if(section==0)return @"필요한 기능만 골라 사용하세요. 변경값은 자동 저장되고, 적용 후 카카오톡을 다시 실행하면 반영됩니다.";
     if(section==1)return @"기능을 켠 뒤 기기에서 확인한 내용만 남습니다. 받기 전에 지워진 메시지는 복원할 수 없습니다.";
-    if(section==3)return @"Ginppai-Kakao-Customizer 3.0.0\nKakaoTalk 26.7.3\nMade by nogadamachine\n지원 범위와 설치 안내는 긴빠이 Repo에서 확인하세요.";
+    if(section==3)return [NSString stringWithFormat:@"Ginppai-Kakao-Customizer %@\nKakaoTalk %@\nMade by nogadamachine\n지원 범위와 설치 안내는 긴빠이 Repo에서 확인하세요.",@KC_VERSION,[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"]?:@"알 수 없음"];
     return nil;
 }
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {

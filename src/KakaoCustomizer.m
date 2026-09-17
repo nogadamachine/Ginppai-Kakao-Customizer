@@ -5,8 +5,11 @@
 #ifndef KC_BUILD_ID
 #define KC_BUILD_ID "local-untracked"
 #endif
+#ifndef KC_VERSION
+#define KC_VERSION "local-untracked"
+#endif
 
-// KakaoTalk 26.7.3 only. Fixed telemetry endpoints can be blocked locally.
+// KakaoTalk 26.7.3 and 26.8.0, exact executable UUIDs only. Fixed telemetry endpoints can be blocked locally.
 static NSDictionary *configurationReport(void);
 static NSDictionary *ginppaiReport(void);
 static NSMutableDictionary *counts;
@@ -20,7 +23,7 @@ static void saveReport(void) {
     pendingWrite = YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         pendingWrite = NO;
-        NSDictionary *report = @{ @"version": @"3.0.2", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
+        NSDictionary *report = @{ @"version": @KC_VERSION, @"build": @KC_BUILD_ID, @"target": [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"]?:@"unknown",
             @"configuration": configurationReport(), @"ginppai": ginppaiReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
         NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil];
         NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/KakaoAdBlock-status.json"];
@@ -44,6 +47,7 @@ static void replace(Class cls, SEL sel, IMP imp, const char *types) {
 }
 
 #import <mach-o/dyld.h>
+#include "NativeBuild.inc"
 
 static NSDictionary *activeOptions;
 static NSMutableDictionary *savedOptions;
@@ -85,7 +89,7 @@ static void loadOptions(void) {
         if(memcmp(base+0x73f0,"KCUICFG3",8)==0) {
             NSString *code=activeOptions[@"countryISO"];
             uint32_t packed=code.length==2?([code characterAtIndex:0]|([code characterAtIndex:1]<<8)):0;
-            *(volatile uint32_t*)(base+0x83e7f00)=packed;
+            *(volatile uint32_t*)(base+KCAddress(0x1083e7f00)-0x100000000)=packed;
             countrySupport=YES;
         }
         break;
@@ -302,7 +306,7 @@ static void hideClass(NSString *name) {
     }), method_getTypeEncoding(hidden));
 }
 
-// Only KakaoTalk's verified 26.7.3 navigation views are modified.
+// Only the navigation controls observed in the supported KakaoTalk builds are modified.
 static const char openSelectionPendingKey;
 static BOOL containsNavigationText(UIView *view, NSString *text) {
     if ([view isKindOfClass:UILabel.class] && [((UILabel *)view).text isEqualToString:text]) return YES;
@@ -310,7 +314,12 @@ static BOOL containsNavigationText(UIView *view, NSString *text) {
     return NO;
 }
 static UIControl *findChip(UIView *view, NSString *text) {
-    if ([view isKindOfClass:NSClassFromString(@"TalkDesignSystemUIKit.ChipTab")] &&
+    BOOL legacy=[view isKindOfClass:NSClassFromString(@"TalkDesignSystemUIKit.ChipTab")];
+    NSString *parent=NSStringFromClass(view.superview.class);
+    BOOL modern=[view isKindOfClass:NSClassFromString(@"TalkDesignSystemUIKit.MainChip")] &&
+        ([parent isEqualToString:@"TalkAppBase.OpenChatChipRenderable"] ||
+         [parent isEqualToString:@"TalkAppBase.ShortFormChipRenderable"]);
+    if ((legacy || modern) && [view isKindOfClass:UIControl.class] &&
         containsNavigationText(view,text)) return (UIControl *)view;
     for (UIView *child in view.subviews) {
         UIControl *found=findChip(child,text); if(found)return found;
@@ -318,7 +327,9 @@ static UIControl *findChip(UIView *view, NSString *text) {
     return nil;
 }
 static void hideBrandChip(UIView *view) {
-    if ([NSStringFromClass(view.class) isEqualToString:@"TalkAppBase.BrandTabChip"]) {
+    NSString *name=NSStringFromClass(view.class);
+    if ([name isEqualToString:@"TalkAppBase.BrandTabChip"] ||
+        [name isEqualToString:@"TalkAppBase.BrandChipRenderable"]) {
         view.hidden=YES; view.userInteractionEnabled=NO; view.accessibilityElementsHidden=YES;
     }
     for (UIView *child in view.subviews) hideBrandChip(child);
@@ -341,6 +352,12 @@ static void customizeNowHeader(UIView *header) {
     if(!shortForm || !openChat)return;
     if(!shortForm.hidden)event(@"tabs:shortform-hidden");
     shortForm.hidden=YES;shortForm.userInteractionEnabled=NO;shortForm.accessibilityElementsHidden=YES;
+    // 26.8 wraps MainChip in an arranged view. Hide that wrapper as well so
+    // UIStackView removes its space and accessibility cannot focus an empty tab.
+    UIView *wrapper=shortForm.superview;
+    if([NSStringFromClass(wrapper.class) isEqualToString:@"TalkAppBase.ShortFormChipRenderable"]){
+        wrapper.hidden=YES;wrapper.userInteractionEnabled=NO;wrapper.accessibilityElementsHidden=YES;
+    }
     hideBrandChip(header);selectOpenChat(header);
 }
 static UIViewController *tabRoot(UIViewController *vc) {
@@ -1060,7 +1077,7 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         NSBundle *bundle = NSBundle.mainBundle;
         NSString *bundleID=bundle.bundleIdentifier;
         if (!([bundleID isEqualToString:@"com.iwilab.KakaoTalk"] || [bundleID hasPrefix:@"com.iwilab.KakaoTalk."]) ||
-            ![[bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] isEqualToString:@"26.7.3"]) return;
+            !kcSelectNativeBuild()) return;
         loadOptions();
         counts = [NSMutableDictionary dictionary];
         installed = [NSMutableArray array];
@@ -1088,6 +1105,6 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.2 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
+        NSLog(@"[Ginppai-Kakao-Customizer] %@ loaded for KakaoTalk %@ (%lu hooks)", @KC_VERSION, [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"], (unsigned long)installed.count);
     }
 }

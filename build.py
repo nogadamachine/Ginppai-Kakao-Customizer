@@ -2,6 +2,8 @@
 """Build public arm64 iOS dylib without a personal signing identity."""
 import os
 import hashlib
+import json
+import re
 from pathlib import Path
 import subprocess
 
@@ -10,6 +12,9 @@ BUILD = ROOT / 'build'
 BUILD.mkdir(exist_ok=True)
 SDK = subprocess.check_output(['xcrun', '--sdk', 'iphoneos', '--show-sdk-path'], text=True).strip()
 ENV = {**os.environ, 'SDKROOT': SDK}
+version = json.loads((ROOT/'package.json').read_text())['version']
+if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[a-z0-9.]+)?', version):
+    raise ValueError('Invalid package version.')
 build_id = hashlib.sha256(b''.join(p.read_bytes() for p in sorted((ROOT/'src').glob('*')) if p.suffix in ['.m', '.inc', '.swift'])).hexdigest()[:16]
 target = ['-sdk', SDK, '-target', 'arm64-apple-ios17.0']
 subprocess.run(['xcrun', 'swiftc', *target, '-O', '-whole-module-optimization', '-parse-as-library', '-emit-object',
@@ -17,6 +22,7 @@ subprocess.run(['xcrun', 'swiftc', *target, '-O', '-whole-module-optimization', 
 subprocess.run(['xcrun', 'clang', '-arch', 'arm64', '-isysroot', SDK, '-miphoneos-version-min=17.0',
                 '-fobjc-arc', '-fblocks', '-O2', '-Wall', '-Wextra', '-Wno-unused-parameter',
                 '-DKC_BUILD_ID="'+build_id+'"',
+                '-DKC_VERSION="'+version+'"',
                 '-Wno-unused-function', '-Wno-deprecated-declarations', '-c', str(ROOT/'src/KakaoCustomizer.m'),
                 '-o', str(BUILD/'KakaoCustomizer.o')], check=True, env=ENV)
 output = BUILD/'GinppaiKakaoCustomizer.dylib'

@@ -1,4 +1,4 @@
-// Customization feature adapters for KakaoTalk 26.7.3. Included in KakaoCustomizer.m.
+// Customization adapters for the exact builds selected in NativeBuild.inc.
 #import <CoreData/CoreData.h>
 #import <mach/mach.h>
 #import <dlfcn.h>
@@ -17,9 +17,9 @@ static PHImageRequestID (*ginppaiOriginalPhotoRequest)(id,SEL,PHAsset *,PHImageR
 static PHImageRequestID ginppaiPhotoRequest(id self,SEL selector,PHAsset *asset,PHImageRequestOptions *options,
                                          void(^completion)(NSData *,NSString *,CGImagePropertyOrientation,NSDictionary *)) {
     uintptr_t caller=(uintptr_t)__builtin_return_address(0)-ginppaiImageSlide;
-    // Exact Photos data call sites in the verified 26.7.3 MediaKit wrappers.
+    // Exact Photos data call sites in each verified MediaKit build.
     // The unrelated reporting and video editing call sites are excluded.
-    BOOL mediaCaller=caller==0x104de6b68 || caller==0x104e12ed8 || caller==0x104e13388;
+    BOOL mediaCaller=caller==KCAddress(0x104de6b68) || caller==KCAddress(0x104e12ed8) || caller==KCAddress(0x104e13388);
     if(!completion || !option(@"stripPhotoMetadata") || !ginppaiNativeBuildVerified || !mediaCaller)
         return ginppaiOriginalPhotoRequest(self,selector,asset,options,completion);
     event(@"ginppai.photoPrivacy.request");
@@ -257,8 +257,8 @@ static void ginppaiDecorateBubble(UIView *view) {
 }
 
 static BOOL __attribute__((swiftcall)) ginppaiTypingBlocked(__attribute__((swift_context)) void *object) {
-    // The native input pipeline branches around SendTypingActionUseCase at
-    // 0x100dbcb94 when this property is true. Text editing continues normally.
+    // Kakao's native input pipeline checks isBlockTypingAction before
+    // submitting typing events. Text editing continues normally.
     event(@"ginppai.typing.blocked");return YES;
 }
 static BOOL ginppaiWritableRegion(void *pointer,size_t length) {
@@ -287,7 +287,7 @@ static BOOL __attribute__((swiftcall)) ginppaiNativeAlimtalk(__attribute__((swif
 static __typeof__(ginppaiNativeAlimtalk) *ginppaiOriginalAlimtalk;
 static BOOL __attribute__((swiftcall)) ginppaiNativeAlimtalk(__attribute__((swift_context)) void *object) {
     uintptr_t caller=(uintptr_t)__builtin_return_address(0)-ginppaiImageSlide;
-    if(caller==0x10078c17c || caller==0x1007b7530)return YES;
+    if(caller==KCAddress(0x10078c17c) || caller==KCAddress(0x1007b7530))return YES;
     return ginppaiOriginalAlimtalk(object);
 }
 extern int64_t __attribute__((swiftcall)) KCGinppaiUnreadCalculator(int64_t,int64_t,void *,void *,BOOL,int64_t);
@@ -298,7 +298,7 @@ static void ginppaiInstallNativeOptions(void) {
     if(!ginppaiNativeBuildVerified)return;
     NSUInteger supported=memcmp(ginppaiImageBase+0x7ff0,"GCOPT003",8)==0?5:(memcmp(ginppaiImageBase+0x7ff0,"GCOPT002",8)==0?4:(memcmp(ginppaiImageBase+0x7ff0,"GCOPT001",8)==0?3:0));
     if(supported) {
-        uint64_t *flags=(uint64_t *)(0x1083e7f10+ginppaiImageSlide);
+        uint64_t *flags=(uint64_t *)(KCAddress(0x1083e7f10)+ginppaiImageSlide);
         if(!ginppaiWritableRegion(flags,sizeof(*flags)) || *flags!=0)return;
         uint64_t value=0;for(NSUInteger bit=0;bit<supported;bit++)if(option(keys[bit]))value|=1ull<<bit;
         *flags=value;for(NSUInteger bit=0;bit<supported;bit++)ginppaiCapabilities[keys[bit]]=@YES;
@@ -307,7 +307,7 @@ static void ginppaiInstallNativeOptions(void) {
     } else {
         void(*hook)(void *,void *,void **)=dlsym(RTLD_DEFAULT,"MSHookFunction");
         if(!hook)return;
-        const uintptr_t addresses[]={0x1017bec68,0x1046ade0c,0x1046acee0,0x100b153b4,0x1008133d0};
+        const uintptr_t addresses[]={KCAddress(0x1017bec68),KCAddress(0x1046ade0c),KCAddress(0x1046acee0),KCAddress(0x100b153b4),KCAddress(0x1008133d0)};
         const uint32_t prologues[]={0xd2800009,0xd10203ff,0xd10203ff,0x0a010008,0x72001c08};
         for(NSUInteger i=0;i<keys.count;i++) {
             void *address=(void *)(addresses[i]+ginppaiImageSlide);
@@ -321,23 +321,23 @@ static void ginppaiInstallNativeOptions(void) {
                 ginppaiCapabilities[keys[i]]=@(original!=NULL);
             }
         }
-        if(*(const uint32_t *)(0x104679d4c+ginppaiImageSlide)==0x90000000) {
+        if(*(const uint32_t *)(KCAddress(0x104679d4c)+ginppaiImageSlide)==0x90000000) {
             ginppaiCapabilities[@"subdeviceAlimtalk"]=@YES;
             if(option(@"showMobileMessages")) {
-                hook((void *)(0x104679d4c+ginppaiImageSlide),(void *)&ginppaiNativeAlimtalk,(void **)&ginppaiOriginalAlimtalk);
+                hook((void *)(KCAddress(0x104679d4c)+ginppaiImageSlide),(void *)&ginppaiNativeAlimtalk,(void **)&ginppaiOriginalAlimtalk);
                 ginppaiCapabilities[@"subdeviceAlimtalk"]=@(ginppaiOriginalAlimtalk!=NULL);
             }
         }
     }
     // Exercise the installed native calculator with synthetic data, including
     // counts on either side of 99. No private message or network is involved.
-    ginppaiUnreadProbe=((id(*)(id,SEL,uintptr_t))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"nativeUnreadProbe:"),(uintptr_t)(0x1017bec68+ginppaiImageSlide));
+    ginppaiUnreadProbe=((id(*)(id,SEL,uintptr_t))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"nativeUnreadProbe:"),(uintptr_t)(KCAddress(0x1017bec68)+ginppaiImageSlide));
     BOOL enabled=option(@"uncapMessageUnread") && [ginppaiCapabilities[@"uncapMessageUnread"] boolValue];
     BOOL valid=[ginppaiUnreadProbe[@"98"] integerValue]==98 && [ginppaiUnreadProbe[@"99"] integerValue]==99 &&
       [ginppaiUnreadProbe[@"100"] integerValue]==(enabled?100:99) && [ginppaiUnreadProbe[@"350"] integerValue]==(enabled?350:99) && [ginppaiUnreadProbe[@"mixed"] integerValue]==2;
     if(!valid)ginppaiCapabilities[@"uncapMessageUnread"]=@NO;
     event(valid?@"ginppai.unread.nativeProbePassed":@"ginppai.unread.nativeProbeFailed");
-    ginppaiCoverProbe=((id(*)(id,SEL,uintptr_t))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"nativeCoverProbe:"),(uintptr_t)(0x100b153b4+ginppaiImageSlide));
+    ginppaiCoverProbe=((id(*)(id,SEL,uintptr_t))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"nativeCoverProbe:"),(uintptr_t)(KCAddress(0x100b153b4)+ginppaiImageSlide));
     BOOL show=option(@"showMobileMessages") && [ginppaiCapabilities[@"showMobileMessages"] boolValue];
     BOOL coverValid=[ginppaiCoverProbe[@"mobileOnly"] integerValue]==(show?6:3) && [ginppaiCoverProbe[@"subdeviceConsent"] integerValue]==(show?6:2) && [ginppaiCoverProbe[@"locked"] integerValue]==4 && [ginppaiCoverProbe[@"adultLocked"] integerValue]==5 && [ginppaiCoverProbe[@"invalid"] integerValue]==0 && [ginppaiCoverProbe[@"invalidVersion"] integerValue]==1;
     if(!coverValid)ginppaiCapabilities[@"showMobileMessages"]=@NO;
@@ -359,7 +359,7 @@ static BOOL __attribute__((swiftcall)) ginppaiNativeSave(__attribute__((swift_co
 static void ginppaiInstallNativeHistory(void) {
     if((!option(@"messageHistory") && !option(@"showDeletedMessages")) || !ginppaiNativeBuildVerified)return;
     if(memcmp(ginppaiImageBase+0x77f0,"GCAMPLE1",8)==0) {
-        void **slot=(void **)(0x1083e7f08+ginppaiImageSlide);
+        void **slot=(void **)(KCAddress(0x1083e7f08)+ginppaiImageSlide);
         if(ginppaiWritablePointer(slot,NULL,(void *)&ginppaiNativeBeforeSave)) {
             ginppaiCapabilities[@"nativeMessageHistory"]=@YES;
             [installed addObject:@"ChatMessage.save prepared native callback"];
@@ -369,8 +369,8 @@ static void ginppaiInstallNativeHistory(void) {
     // Jailbreak packages already depend on Substrate or ElleKit. The optional
     // function adapter is used only when that runtime is present.
     void(*hook)(void *,void *,void **)=dlsym(RTLD_DEFAULT,"MSHookFunction");
-    if(hook && *(const uint32_t *)(0x104631934+ginppaiImageSlide)==0xaa1e03e0) {
-        hook((void *)(0x104631934+ginppaiImageSlide),(void *)&ginppaiNativeSave,(void **)&ginppaiOriginalSave);
+    if(hook && *(const uint32_t *)(KCAddress(0x104631934)+ginppaiImageSlide)==0xaa1e03e0) {
+        hook((void *)(KCAddress(0x104631934)+ginppaiImageSlide),(void *)&ginppaiNativeSave,(void **)&ginppaiOriginalSave);
         if(ginppaiOriginalSave){ginppaiCapabilities[@"nativeMessageHistory"]=@YES;[installed addObject:@"ChatMessage.save jailbreak native hook"];}
     }
 }
@@ -385,8 +385,8 @@ static void ginppaiInstallTyping(void) {
         for(Class current=cls;current;current=class_getSuperclass(current))if(current==base){match=YES;break;}
         if(!match)continue;
         // Verified Swift class metadata vtable offset for this exact app build.
-        void **slot=(void **)((uint8_t *)(__bridge void *)cls+0xc90);
-        if(ginppaiWritablePointer(slot,(void *)(0x100d91268+slide),(void *)&ginppaiTypingBlocked))patched++;
+        void **slot=(void **)((uint8_t *)(__bridge void *)cls+KCTypingSlot());
+        if(ginppaiWritablePointer(slot,(void *)(KCAddress(0x100d91268)+slide),(void *)&ginppaiTypingBlocked))patched++;
     }
     free(classes);ginppaiCapabilities[@"hideTyping"]=@(patched>0);
     if(patched)[installed addObject:@"ChatInputController isBlockTypingAction Swift getter"];
@@ -399,17 +399,7 @@ static void installCustomizationFeatures(void) {
     ginppaiLayoutDiagnostics=[NSMutableDictionary new];
     ginppaiCellLayouts=[NSMutableSet new];
     for(uint32_t i=0;i<_dyld_image_count();i++)if([[[NSString stringWithUTF8String:_dyld_get_image_name(i)] lastPathComponent] isEqualToString:@"KakaoTalk"]){ginppaiImageSlide=_dyld_get_image_vmaddr_slide(i);ginppaiImageBase=(const uint8_t *)_dyld_get_image_header(i);break;}
-    if(ginppaiImageBase) {
-        const struct mach_header_64 *header=(const struct mach_header_64 *)ginppaiImageBase;
-        const uint8_t *cursor=ginppaiImageBase+sizeof(*header),*end=cursor+header->sizeofcmds;
-        const uint8_t expectedUUID[16]={0xfa,0xab,0x71,0xb6,0x29,0x25,0x3d,0x3e,0x81,0x7f,0xc6,0x61,0x42,0xb3,0x77,0x78};
-        for(uint32_t i=0;i<header->ncmds && cursor+sizeof(struct load_command)<=end;i++) {
-            const struct load_command *cmd=(const struct load_command *)cursor;
-            if(cmd->cmdsize<sizeof(*cmd) || cursor+cmd->cmdsize>end)break;
-            if(cmd->cmd==LC_UUID && cmd->cmdsize>=sizeof(struct uuid_command))ginppaiNativeBuildVerified=memcmp(((const struct uuid_command *)cmd)->uuid,expectedUUID,16)==0;
-            cursor+=cmd->cmdsize;
-        }
-    }
+    ginppaiNativeBuildVerified=kcNativeProfile!=0;
     ginppaiInstallTyping();
     ginppaiInstallNativeOptions();
     ginppaiInstallPhotoPrivacy();

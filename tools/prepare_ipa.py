@@ -13,6 +13,7 @@ import struct
 import subprocess
 import tempfile
 import zipfile
+from native_layouts import NATIVE_26_8, ORIGINAL_26_8_SHA256
 
 def custom_branding(app, name):
     """Rename only app display labels, preserving executable and signing IDs."""
@@ -91,9 +92,10 @@ def country_patch(data):
             if data[section:section+16].split(b'\0')[0]==b'__text':
                 length,position=struct.unpack_from('<QI',data,section+40)
                 fingerprint=hashlib.sha256(data[position:position+length]).hexdigest()
-    if fingerprint!=expected or any(data[0x7000:0x7400]):
-        raise ValueError('Country patch supports only the verified, unpatched KakaoTalk 26.7.3 arm64 executable.')
-    b=bytearray(data);base=0x100000000;slot=0x1083e7f00
+    current = fingerprint == ORIGINAL_26_8_SHA256
+    if fingerprint not in {expected, ORIGINAL_26_8_SHA256} or any(data[0x7000:0x7400]):
+        raise ValueError('Country patch supports only verified, unpatched KakaoTalk 26.7.3 and 26.8.0 arm64 executables.')
+    b=bytearray(data);base=0x100000000;slot=NATIVE_26_8["COUNTRY_SLOT"] if current else 0x1083e7f00
     def put(address,word): struct.pack_into('<I',b,address-base,word)
     def branch(pc,target):
         delta=target-pc
@@ -105,12 +107,14 @@ def country_patch(data):
         put(pc+4,0xb9400000|(((slot&0xfff)//4)<<10)|(17<<5)|16)
     def cbz(pc,target): put(pc,0x34000000|((((target-pc)//4)&0x7ffff)<<5)|16)
     pc=base+0x7000;load(pc);cbz(pc+8,pc+28)
-    put(pc+12,0x2a1003e0);put(pc+16,0xd2fc4001);put(pc+20,0xd65f03c0);branch(pc+28,0x104694c00)
-    for offset,code,fallback in [(0x7080,b'KR',0x104695010),(0x70c0,b'JP',0x104695014)]:
+    put(pc+12,0x2a1003e0);put(pc+16,0xd2fc4001);put(pc+20,0xd65f03c0);branch(pc+28,NATIVE_26_8["COUNTRY_FALLBACK"] if current else 0x104694c00)
+    fallbacks=NATIVE_26_8['COUNTRY_BOOL_FALLBACKS'] if current else [0x104695010,0x104695014]
+    for offset,code,fallback in [(0x7080,b'KR',fallbacks[0]),(0x70c0,b'JP',fallbacks[1])]:
         pc=base+offset;load(pc);cbz(pc+8,pc+32)
         put(pc+12,0x52800000|(int.from_bytes(code,'little')<<5)|17)
         put(pc+16,0x6b11021f);put(pc+20,0x1a9f17e0);put(pc+24,0xd65f03c0);branch(pc+32,fallback)
-    for address,target in [(0x4694bfc,0x7000),(0x46957dc,0x7080),(0x46957e0,0x70c0)]:branch(base+address,base+target)
+    entries=NATIVE_26_8["COUNTRY_BRANCHES"] if current else [0x104694bfc,0x1046957dc,0x1046957e0]
+    for address,target in zip(entries,[0x7000,0x7080,0x70c0]):branch(address,base+target)
     b[0x73f0:0x73f8]=b'KCUICFG3'
     return b
 
@@ -119,7 +123,7 @@ def main():
     parser.add_argument('input',type=Path)
     parser.add_argument('output',type=Path)
     parser.add_argument('--dylib',type=Path,action='append',required=True)
-    parser.add_argument('--country-ui',action='store_true',help='Apply verified KakaoTalk 26.7.3 UI-only country patch.')
+    parser.add_argument('--country-ui',action='store_true',help='Apply a verified KakaoTalk UI-only country patch.')
     parser.add_argument('--features',action='store_true',help='Add verified native message-save callbacks for Ginppai features.')
     parser.add_argument('--display-name',help='Set the main app name in all bundled languages before signing.')
     args=parser.parse_args()
@@ -142,12 +146,12 @@ def main():
         if len(apps)!=1: raise ValueError('Expected one main app.')
         app=apps[0];info=plistlib.loads((app/'Info.plist').read_bytes())
         if info.get('CFBundleIdentifier')!='com.iwilab.KakaoTalk': raise ValueError('Expected KakaoTalk IPA.')
-        if any('Customizer' in p.name for p in args.dylib) and info.get('CFBundleShortVersionString')!='26.7.3':
-            raise ValueError('Customizer supports only KakaoTalk 26.7.3.')
+        if any('Customizer' in p.name for p in args.dylib) and info.get('CFBundleShortVersionString') not in {'26.7.3','26.8.0'}:
+            raise ValueError('Customizer supports verified KakaoTalk 26.7.3 and 26.8.0 builds.')
         if args.display_name is not None: custom_branding(app,args.display_name)
         executable=app/info['CFBundleExecutable'];binary=bytearray(executable.read_bytes())
         if args.country_ui:
-            if info.get('CFBundleShortVersionString')!='26.7.3': raise ValueError('Country patch requires 26.7.3.')
+            if info.get('CFBundleShortVersionString') not in {'26.7.3','26.8.0'}: raise ValueError('Country patch requires 26.7.3 or 26.8.0.')
             binary=country_patch(binary)
         if args.features:
             from native_patch import patch

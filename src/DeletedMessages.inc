@@ -138,10 +138,10 @@ static void ginppaiInstallDeletedMessages(void) {
     if(!ginppaiNativeBuildVerified)return;
     Class message=NSClassFromString(@"KakaoTalk.TextMessage");if(!message)return;
     const NSUInteger offsets[]={0x1e0,0x1f8,0x408,0x170,0x178};
-    const uintptr_t addresses[]={0x10461fea8,0x10461feec,0x104621174,0x10461fc74,0x10461fca8};
+    const uintptr_t addresses[]={KCAddress(0x10461fea8),KCAddress(0x10461feec),KCAddress(0x104621174),KCAddress(0x10461fc74),KCAddress(0x10461fca8)};
     void *replacements[]={(void *)&ginppaiDisplayedMessageType,(void *)&ginppaiDisplayedMessageText,(void *)&ginppaiDisplayedMessageDeleted};
     for(NSUInteger i=0;i<5;i++) {
-        void **slot=(void **)((uint8_t *)(__bridge void *)message+offsets[i]);
+        void **slot=(void **)((uint8_t *)(__bridge void *)message+KCMessageSlot(offsets[i]));
         if(!ginppaiWritableRegion(slot,sizeof(*slot)) || *slot!=(void *)(addresses[i]+ginppaiImageSlide))return;
     }
     Class controller=NSClassFromString(@"KakaoTalk.ChattingTableViewController");
@@ -149,7 +149,7 @@ static void ginppaiInstallDeletedMessages(void) {
     if(!provider || method_getNumberOfArguments(provider)!=3 || strcmp(method_getTypeEncoding(provider),"v24@0:8@16"))return;
     Class source=NSClassFromString(@"KakaoTalk.ChatMessageProvider");if(!source)return;
     void **fetchSlot=(void **)((uint8_t *)(__bridge void *)source+0x6c8);
-    void *fetchOriginal=(void *)(0x100297d64+ginppaiImageSlide);
+    void *fetchOriginal=(void *)(KCAddress(0x100297d64)+ginppaiImageSlide);
     if(!ginppaiWritableRegion(fetchSlot,sizeof(*fetchSlot)) || *fetchSlot!=fetchOriginal)return;
     SEL cellSel=NSSelectorFromString(@"tableView:cellForRowAtIndexPath:");Method cell=class_getInstanceMethod(controller,cellSel);
     SEL heightSel=NSSelectorFromString(@"tableView:heightForRowAtIndexPath:");Method height=class_getInstanceMethod(controller,heightSel);
@@ -164,7 +164,7 @@ static void ginppaiInstallDeletedMessages(void) {
     ginppaiSetMessageRecord=(void *)(addresses[4]+ginppaiImageSlide);
     // Only display clones have the associated text. Ordinary TextMessage
     // objects retain their original getters in every context.
-    for(NSUInteger i=0;i<3;i++)ginppaiWritablePointer((void **)((uint8_t *)(__bridge void *)message+offsets[i]),(void *)(addresses[i]+ginppaiImageSlide),replacements[i]);
+    for(NSUInteger i=0;i<3;i++)ginppaiWritablePointer((void **)((uint8_t *)(__bridge void *)message+KCMessageSlot(offsets[i])),(void *)(addresses[i]+ginppaiImageSlide),replacements[i]);
     ginppaiWritablePointer(fetchSlot,fetchOriginal,(void *)&ginppaiDisplayedMessageAtIndex);
     // The native height and cell factory both fetch by IndexPath through this
     // vtable slot. Only these synchronous UI calls receive the display clone.
