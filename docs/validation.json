@@ -1,5 +1,5 @@
 {
-  "version": "3.0.1",
+  "version": "3.0.2",
   "status": "stable-for-documented-environment",
   "upstream_version": "v1.5.0-dev.9",
   "upstream_commit": "70f43985acdb0f9fe49d5cda0b88676583aca2d1",
@@ -7,7 +7,7 @@
   "release_ready": true,
   "latest_source_build": "passed: arm64 iOS 17 minimum",
   "native_callback_device_execution": "passed after LiveContainer patch revision reset and re-sign",
-  "device_current_version": "3.0.1 build 1168753ca4a55512",
+  "device_current_version": "3.0.2 build f56bfad30b6076fe",
   "jailbreak_device_test": "not performed",
   "sidestore_direct_install_device_test": "not performed",
   "stable_version_evidence": "validation-2.3.2.json",
@@ -22,7 +22,7 @@
   "read_receipt_native_analysis": "readMarks and activeMemberIDs Int64 arrays share index, confirmed in exact 26.7.3 native updater",
   "ghost_mode_device_input_test": "passed: unsent draft invoked typing suppression six times; draft cleared without sending; peer device not observed",
   "full_message_history_parity": false,
-  "original_ipad_binary_unchanged": true,
+  "original_ipad_binary_unchanged": false,
   "country_setting_preserved": "User-selected Korean account-default UI retained; all unrelated options and original data UUID verified unchanged",
   "message_tools_scroll_reuse": "Repeated menu selections preserved correct context. Long-chat scroll reuse and physical long press are not fully tested.",
   "message_history_restart": "passed: archive entry captured at 15:44 displayed after app restart at 15:47 without duplicate revision",
@@ -67,7 +67,7 @@
   "friend_list_mode": "Passed on iOS 26.1: on/off restored one/two native chip identifiers; persisted feed selection returned to friend-list content; repeated bottom-tab taps and returning from More kept the list. Latest guard build verified one list identifier and the correct visible content.",
   "friend_list_selection_fix": "Checks both the header selection and actual active child controller; filtering the chip alone did not restore persisted feed content.",
   "friend_list_scope": "Only exact FriendsTabHeaderView.ChipItem enum roles in one/two-item snapshots; unknown roles and unrelated sources remain unchanged. Runtime signature required.",
-  "layout_probe": "Removed and absence verified after the final device test",
+  "layout_probe": "Private probe removed after regression tests",
   "more_rendering_cases_passed": 22,
   "more_sections_device": "Passed: KakaoNow and Weather hide together and return when disabled; hiding service group removes icon grid while preserving KakaoNow and Weather. Pay and vertical service rendering hooks installed, but their actual exposed layouts were unavailable on this account.",
   "more_ad_layout": "Passed: large empty region between service grid and KakaoNow removed with hideAds=true, surrounding content retained.",
@@ -80,8 +80,8 @@
   "deleted_action_guards": "Initial mirrored double-click revealed native reaction on a preserved deleted bubble. Final fix disables double-tap and swipe recognizers only within the preserved text cell and restores them on reuse. Mirrored double-click no longer reacted; ordinary message double-click still reacted and was undone immediately. Mirrored horizontal drag did not enter reply, but physical-finger swipe remains untested. Deleted-message native-handler fixture showed only read/copy tools.",
   "swift_string_abi": "Four fixtures including empty, Korean and long text, repeated 128 times each, passed Swift/C/swift_context return and ownership round trips on arm64 Mac.",
   "external_browser_fallback": "Native browser handler is used when system openURL fails; actual failure-path device test pending.",
-  "temporary_menu_probe": "Removed. Final production-only launch showed Korean friends screen with no QA controls. Loadable folder contains only Customizer and original iPad dylib. Every user preference, iPad binary and data UUID matched the pre-QA baseline.",
-  "installed_artifact_match": "Every byte outside the Mach-O code-signature blob matched the final build. The only difference was LiveContainer re-signing. Original iPad binary and data-container UUID remained unchanged.",
+  "temporary_menu_probe": "All private QA dylibs removed before final production launch; only Customizer and iPad tweak remain.",
+  "installed_artifact_match": "Customizer and iPad 1.1.0 matched build bytes outside LiveContainer code-signature blobs. Every pre-update preference and data-container UUID retained.",
   "native_record_abi": "128 class-bound existential copies preserved shared record identity and raw deletion type; all 256 records were destroyed after scope exit. Getter returns owned object+witness, setter consumes ownership. Passed on arm64 Mac.",
   "authorized_outgoing_test": "Prior dev5: exactly one explicitly authorized test-chat text sent and deleted for everyone. Stable QA: one synthetic own-chat text sent and edited, no new messages sent to others. A normal test-message reaction from gesture verification was immediately undone.",
   "stable_release_scope": "KakaoTalk 26.7.3, iOS 26.1, SideStore + LiveContainer. Stable denotes this documented environment, not all 72 reference features or all installation paths.",
@@ -96,7 +96,7 @@
     "scope": "Four-message test chat, repeated native reload/layout. Not a long-history physical scrolling test."
   },
   "settings_reenable": "Passed on device: started with deleted-display option off, setting remained available, enabled it in UI and applied/restarted; all three preserved deleted bubbles returned.",
-  "release_gate": "Passed: 188 local cases, final production-only device launch/readback, exact source build identity, strict codesign, both DEB payloads/filters, ZIP manifest and SHA256. Unverified environments remain listed explicitly.",
+  "release_gate": "188 existing local cases, 13 iPad caller boundary cases with ASan/UBSan, native device navigation/keyboard checks, production payload readback, signatures and artifact hashes.",
   "archive_final_ui": "Final production-only build showed complete compact footer, dates and revision counts, with no QA controls.",
   "message_menu_regression": {
     "before": "3.0.0 opened the native menu through invokeSubmenuAction: but never entered the tweak hook",
@@ -106,5 +106,10 @@
     "tap_entry": "invokeSubmenuActionByTap: displayed native accessory and matching message details",
     "deleted_entry": "invokeSubmenuAction: opened preserved-original tools and matching deleted message details",
     "new_messages_sent": false
-  }
+  },
+  "ipad_tweak_version": "1.1.0",
+  "navigation_keyboard_fix": "See navigation-keyboard-fix.md. Existing failure reproduced using native tab handlers; startup uses native selection once per process and cancels stale work after interaction. Three background/resume cycles and direct native selection passed.",
+  "native_keyboard_scope": "Native English iPhone QWERTY layout, 123 switching and numeric input observed with private on-screen keyboard test helpers because Mirroring presents a hardware keyboard. Kakao native isPad remained true, actual window idiom iPhone. Korean keyboard and physical-finger input without Mirroring not tested.",
+  "kakao_26_8_0": "Not validated. App Store installation alone does not supply a decrypted IPA for LiveContainer; 26.7.3 remains the supported Customizer target.",
+  "tab_retap_device": "Friends retained offset 96 across switching; Chats adjusted 49 to 161.67 through native relayout, neither reset to top. Genuine retap returned Friends to -104 and Chats to -151. Native handler can consume retap and veto the additional delegate scroll, so event count alone is not a success criterion. Now retap visibly remained OpenChat."
 }

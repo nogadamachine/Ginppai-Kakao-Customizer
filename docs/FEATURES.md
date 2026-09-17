@@ -1,6 +1,6 @@
 # Ginppai 기능과 검증 범위
 
-3.0.1은 KakaoTalk 26.7.3 / iOS 26.1 / SideStore + LiveContainer에서 확인한 정식 배포본입니다. 정식판 표시는 아래 미확인 환경까지 보장한다는 의미가 아닙니다. 기존 공개 안정판 기록은 validation-2.3.2.json에 별도로 남겼습니다.
+3.0.2는 KakaoTalk 26.7.3 / iOS 26.1 / SideStore + LiveContainer에서 확인한 정식 배포본입니다. 정식판 표시는 아래 미확인 환경까지 보장한다는 의미가 아닙니다. 기존 공개 안정판 기록은 validation-2.3.2.json에 별도로 남겼습니다.
 
 | 기능 | 확인한 결과 | 남은 범위 |
 |---|---|---|

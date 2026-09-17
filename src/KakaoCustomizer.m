@@ -20,7 +20,7 @@ static void saveReport(void) {
     pendingWrite = YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC), dispatch_get_main_queue(), ^{
         pendingWrite = NO;
-        NSDictionary *report = @{ @"version": @"3.0.1", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
+        NSDictionary *report = @{ @"version": @"3.0.2", @"build": @KC_BUILD_ID, @"target": @"26.7.3",
             @"configuration": configurationReport(), @"ginppai": ginppaiReport(), @"installedHooks": installed, @"events": counts, @"adViewSamples": viewSamples };
         NSData *data = [NSJSONSerialization dataWithJSONObject:report options:NSJSONWritingPrettyPrinted error:nil];
         NSString *path = [NSHomeDirectory() stringByAppendingPathComponent:@"Documents/KakaoAdBlock-status.json"];
@@ -365,7 +365,35 @@ static void collectTabButtons(UIView *view,NSMutableArray<UIControl *> *buttons)
     if([NSStringFromClass(view.class) isEqualToString:@"KakaoTalk.MainTabBarButton"]){[buttons addObject:(UIControl *)view];return;}
     for(UIView *child in view.subviews)collectTabButtons(child,buttons);
 }
-static const char hiddenTabKey,hiddenBadgeKey,redirectPendingKey,startupAppliedKey,quickGestureKey;
+static const char hiddenTabKey,hiddenBadgeKey,redirectPendingKey,quickGestureKey,retapButtonKey;
+// A launch preference belongs to this process, not each replacement controller.
+static BOOL startupPreferenceConsumed;
+static NSUInteger tabInteractionGeneration;
+static UIView *nativeMainBar(UIView *view) {
+    if([NSStringFromClass(view.class) isEqualToString:@"KakaoTalk.MainTabBarView"])return view;
+    for(UIView *child in view.subviews){UIView *bar=nativeMainBar(child);if(bar)return bar;}
+    return nil;
+}
+static NSUInteger tabButtonIndex(UIView *bar,UIControl *button,UITabBarController *controller) {
+    NSMutableArray *buttons=[NSMutableArray new];collectTabButtons(bar,buttons);
+    if(!controller || buttons.count!=controller.viewControllers.count)return NSNotFound;
+    return [buttons indexOfObjectIdenticalTo:button];
+}
+static BOOL selectNativeTab(UITabBarController *controller,NSUInteger index) {
+    UIView *bar=nativeMainBar(controller.view);NSMutableArray *buttons=[NSMutableArray new];collectTabButtons(bar,buttons);
+    if(!bar || buttons.count!=controller.viewControllers.count || index>=buttons.count)return NO;
+    UIControl *button=buttons[index];if(button.hidden || !button.enabled || !button.userInteractionEnabled)return NO;
+    // KakaoTalk keeps selection bookkeeping beyond UIKit and the visible bar.
+    // Updating only selectedIndex can leave the next chat selection ignored.
+    SEL down=NSSelectorFromString(@"handleButtonTouchDown:"),up=NSSelectorFromString(@"handleButtonTouchUpInside:");
+    for(NSString *name in @[@"handleButtonTouchDown:",@"handleButtonTouchUpInside:"]) {
+        Method m=class_getInstanceMethod(bar.class,NSSelectorFromString(name));
+        if(!m || strcmp(method_getTypeEncoding(m),"v24@0:8@16"))return NO;
+    }
+    ((void(*)(id,SEL,id))objc_msgSend)(bar,down,button);
+    ((void(*)(id,SEL,id))objc_msgSend)(bar,up,button);
+    return YES;
+}
 @interface KCQuickSettingsTarget : NSObject
 - (void)open:(UIGestureRecognizer *)gesture;
 @end
@@ -450,8 +478,14 @@ static void customizeMainBar(UIView *bar) {
         if(target==NSNotFound)for(NSUInteger i=0;i<buttons.count;i++)if(!buttons[i].hidden){target=i;break;}
         if(target!=NSNotFound) {
             objc_setAssociatedObject(controller,&redirectPendingKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            NSUInteger source=controller.selectedIndex,generation=tabInteractionGeneration;
             __weak UITabBarController *weak=controller;
-            dispatch_async(dispatch_get_main_queue(),^{UITabBarController *vc=weak;if(!vc)return;vc.selectedIndex=target;objc_setAssociatedObject(vc,&redirectPendingKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);event(@"tabs:hidden-selection-repaired");});
+            dispatch_async(dispatch_get_main_queue(),^{
+                UITabBarController *vc=weak;if(!vc)return;
+                objc_setAssociatedObject(vc,&redirectPendingKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                if(vc.selectedIndex!=source || generation!=tabInteractionGeneration || vc.presentedViewController)return;
+                if(selectNativeTab(vc,target))event(@"tabs:hidden-selection-repair-requested");
+            });
         }
     }
 }
@@ -470,8 +504,8 @@ static void installNavigationConvenience(void) {
         IMP original=method_getImplementation(m);
         replace(cls,appeared,imp_implementationWithBlock(^(UITabBarController *vc,BOOL animated){
             ((void (*)(id,SEL,BOOL))original)(vc,appeared,animated);customizeBarsInView(vc.view);
-            if(objc_getAssociatedObject(vc,&startupAppliedKey))return;
-            objc_setAssociatedObject(vc,&startupAppliedKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            if(startupPreferenceConsumed)return;
+            startupPreferenceConsumed=YES;
             NSString *desired=activeOptions[@"startupTab"];
             if([desired isEqualToString:@"remember"])return;
             UIViewController *selected=vc.selectedViewController;
@@ -479,11 +513,14 @@ static void installNavigationConvenience(void) {
             NSUInteger target=NSNotFound;
             for(NSUInteger i=0;i<vc.viewControllers.count;i++)if([tabKind(vc.viewControllers[i]) isEqualToString:desired]){target=i;break;}
             if(target==NSNotFound || ([desired isEqualToString:@"calls"] && option(@"hideCallTab")))target=0;
+            NSUInteger generation=tabInteractionGeneration;
+            __weak UIViewController *initialSelection=selected;
             __weak UITabBarController *weak=vc;
             dispatch_async(dispatch_get_main_queue(),^{UITabBarController *current=weak;if(!current || current.presentedViewController)return;
                 UIViewController *currentTab=current.selectedViewController;
+                if(generation!=tabInteractionGeneration || currentTab!=initialSelection)return;
                 if([currentTab isKindOfClass:UINavigationController.class] && ((UINavigationController *)currentTab).viewControllers.count>1)return;
-                if(target<current.viewControllers.count){current.selectedIndex=target;customizeBarsInView(current.view);event(@"tabs:startup-selected");}
+                if(selectNativeTab(current,target)){customizeBarsInView(current.view);event(@"tabs:startup-requested");}
             });
         }),method_getTypeEncoding(m));
     }
@@ -519,6 +556,7 @@ static BOOL interceptNowReselection(UIView *bar, UIControl *button) {
     for (UIResponder *r=bar.nextResponder;r;r=r.nextResponder) {
         if (![NSStringFromClass(r.class) isEqualToString:@"KakaoTalk.MainTabBarController"]) continue;
         UITabBarController *controller=(UITabBarController *)r;
+        if(tabButtonIndex(bar,button,controller)!=controller.selectedIndex)return NO;
         if (![NSStringFromClass(controller.selectedViewController.class) isEqualToString:@"KakaoTalk.NowTabNavigationController"]) return NO;
         if(!option(@"hideShortForm") && !option(@"preferOpenChat")) {
             UIControl *open=findChip(controller.selectedViewController.view,@"오픈채팅");
@@ -539,11 +577,27 @@ static void installNowReselectionFix(void) {
         if(!method)continue;
         IMP original=method_getImplementation(method);
         replace(cls,sel,imp_implementationWithBlock(^(UIView *bar, UIControl *button){
+            UITabBarController *controller=mainController(bar);
+            BOOL down=sel==@selector(handleButtonTouchDown:);
+            BOOL reselected=button.selected && tabButtonIndex(bar,button,controller)==controller.selectedIndex;
+            if(down) {
+                tabInteractionGeneration++;
+                objc_setAssociatedObject(bar,&retapButtonKey,reselected?button:nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            } else {
+                // Touch-down can select the destination before touch-up arrives.
+                // Remember the original selection so changing tabs preserves position.
+                reselected=reselected && objc_getAssociatedObject(bar,&retapButtonKey)==button;
+                objc_setAssociatedObject(bar,&retapButtonKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
             if(interceptNowReselection(bar,button)) {
                 if(option(@"scrollTopOnRetap") && sel==@selector(handleButtonTouchUpInside:))scrollSelectedTabToTop(bar);
                 return;
             }
             ((void (*)(id,SEL,id))original)(bar,sel,button);
+            if(sel==@selector(handleButtonTouchUpInside:)) {
+                if(reselected && option(@"scrollTopOnRetap") && tabButtonIndex(bar,button,controller)==controller.selectedIndex)scrollSelectedTabToTop(bar);
+                customizeBarsInView(bar);
+            }
         }),method_getTypeEncoding(method));
     }
 }
@@ -1034,6 +1088,6 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.1 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
+        NSLog(@"[Ginppai-Kakao-Customizer] 3.0.2 loaded for KakaoTalk 26.7.3 (%lu hooks)", (unsigned long)installed.count);
     }
 }
