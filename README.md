@@ -17,6 +17,8 @@
 
 3.1.0은 카카오톡 26.8.0에 대응하며 숏폼 숨김을 수정했습니다. **iPad 판정과 기본 키보드 수정은 별도 [Ginppai-Kakao-iPad](https://github.com/nogadamachine/Ginppai-Kakao-iPad)의 기능입니다.**
 
+탈옥용 **DEB 3.1.0-1**은 후킹 라이브러리 연결을 수정했습니다. LiveContainer용 파일은 기존 3.1.0과 같습니다.
+
 ## 설치
 
 | 환경 | 파일 |

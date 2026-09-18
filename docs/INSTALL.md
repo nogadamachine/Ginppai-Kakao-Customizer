@@ -6,8 +6,12 @@ KakaoTalk **26.7.3 또는 26.8.0**, iOS 17 이상이 필요합니다. 앱을 바
 
 Sileo / Zebra / Cydia에 [긴빠이 Repo](https://nogadamachine.github.io/Ginppai-Repo/)를 추가하고 **Ginppai-Kakao-Customizer**를 설치합니다.
 
-- 루트리스: `iphoneos-arm64.deb`
-- 루트풀: `iphoneos-arm.deb`
+- 루트리스: [전용 Repo](https://nogadamachine.github.io/Ginppai-Repo/rootless/), `iphoneos-arm64.deb`
+- 루트풀: [전용 Repo](https://nogadamachine.github.io/Ginppai-Repo/rootful/), `iphoneos-arm.deb`
+
+최신 탈옥 패키지는 **3.1.0-1**입니다. 설치 후 카카오톡을 완전히 종료하고 다시 실행하세요. 트윅 주입이 켜져 있어야 합니다. iOS 16 이하는 지원하지 않으며 RootHide용 패키지는 제공하지 않습니다.
+
+기본 Repo 추가가 실패하거나 중복 표시되면 환경에 맞는 전용 주소 하나로 교체하세요. [탈옥 패키지 수정과 검증](jailbreak-packaging.md)
 
 ## LiveContainer
 

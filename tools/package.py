@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Wrap the same app-only dylib in rootful/rootless packages."""
+"""Package app-only dylibs, linking the hook provider for jailbreak payloads."""
+import argparse
 import hashlib
+from jailbreak_link import link_provider
 import json
 from pathlib import Path
 import plistlib
@@ -9,6 +11,9 @@ import subprocess
 import tempfile
 import zipfile
 
+parser=argparse.ArgumentParser()
+parser.add_argument('--jailbreak-only', action='store_true', help='Keep existing standalone and ZIP artifacts unchanged.')
+args=parser.parse_args()
 ROOT = Path(__file__).resolve().parents[1]
 config = json.loads((ROOT/'package.json').read_text())
 dylib = ROOT/'build'/config['dylib']
@@ -21,8 +26,8 @@ if source_id.encode() not in dylib.read_bytes() or config['version'].encode() no
     raise SystemExit('Source or version changed. Rebuild before packaging.')
 dist = ROOT/'dist'
 dist.mkdir(exist_ok=True)
-shutil.copy2(dylib, dist/config['dylib'])
-artifacts = [dist/config['dylib']]
+if not args.jailbreak_only: shutil.copy2(dylib, dist/config['dylib'])
+artifacts = [] if args.jailbreak_only else [dist/config['dylib']]
 for scheme, architecture, prefix in [('rootful', 'iphoneos-arm', ''), ('rootless', 'iphoneos-arm64', 'var/jb')]:
     with tempfile.TemporaryDirectory(prefix='ginppai-package-') as temp:
         stage = Path(temp)
@@ -30,7 +35,10 @@ for scheme, architecture, prefix in [('rootful', 'iphoneos-arm', ''), ('rootless
         control.mkdir()
         lib = stage/prefix/'Library/MobileSubstrate/DynamicLibraries'
         lib.mkdir(parents=True)
-        shutil.copy2(dylib, lib/config['dylib'])
+        payload=lib/config['dylib']
+        payload.write_bytes(link_provider(dylib.read_bytes(), scheme))
+        subprocess.run(['codesign','--force','--sign','-','--identifier',config['id'],str(payload)],check=True)
+        subprocess.run(['codesign','--verify','--strict',str(payload)],check=True)
         (lib/Path(config['dylib']).with_suffix('.plist')).write_bytes(plistlib.dumps({
             'Filter': {'Bundles': ['com.iwilab.KakaoTalk']}
         }))
@@ -49,14 +57,19 @@ for scheme, architecture, prefix in [('rootful', 'iphoneos-arm', ''), ('rootless
             'Depends': f'firmware (>= {minimum}), mobilesubstrate | ellekit',
             'Description': config['description'], 'Homepage': config['homepage'],
             'Depiction': config['depiction'],
-            'Installed-Size': str(sum(p.stat().st_size for p in lib.iterdir())//1024+1),
+            'Installed-Size': str((sum(p.stat().st_size for p in stage.rglob('*') if p.is_file())+1023)//1024),
         }
         (control/'control').write_text(''.join(f'{key}: {value}\n' for key,value in fields.items()))
         for path in stage.rglob('*'):
             path.chmod(0o755 if path.is_dir() or path.suffix == '.dylib' else 0o644)
-        output = dist/f"{config['id']}_{config['version']}_{architecture}.deb"
+        output = dist/f"{config['id']}_{config.get('debVersion',config['version'])}_{architecture}.deb"
         subprocess.run(['dpkg-deb', '--root-owner-group', '-Zgzip', '-b', str(stage), str(output)], check=True)
         artifacts.append(output)
+if args.jailbreak_only:
+    sums=dist/f"Jailbreak-{config.get('debVersion',config['version'])}-SHA256SUMS"
+    sums.write_text(''.join(f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n' for p in sorted(artifacts)))
+    print(dist)
+    raise SystemExit(0)
 bundle=dist/f"{config['name']}-{config['version']}-NonJailbreak.zip"
 with zipfile.ZipFile(bundle,'w',compression=zipfile.ZIP_DEFLATED) as archive:
     entries={config['dylib']:dylib, 'README.md':ROOT/'README.md', 'LICENSE':ROOT/'LICENSE',
@@ -72,4 +85,8 @@ artifacts.append(bundle)
 (dist/'SHA256SUMS').write_text(''.join(
     f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
     for p in sorted(artifacts)))
+if config.get('debVersion',config['version']) != config['version']:
+    (dist/f"Jailbreak-{config['debVersion']}-SHA256SUMS").write_text(''.join(
+        f'{hashlib.sha256(p.read_bytes()).hexdigest()}  {p.name}\n'
+        for p in sorted(artifacts) if p.suffix == '.deb'))
 print(dist)
