@@ -11,21 +11,8 @@ static NSArray *ginppaiFriendItems(id snapshot) {
     if(![items isKindOfClass:NSArray.class] || [items count]<1 || [items count]>2 || ginppaiFriendListIndex(items)<0)return nil;
     return items;
 }
-static id ginppaiFriendPromotionSnapshot(id snapshot) {
-    if(!option(@"hideAds") || !ginppaiNativeBuildVerified || ![snapshot respondsToSelector:@selector(sectionIdentifiers)] ||
-       ![snapshot respondsToSelector:@selector(copyWithZone:)] || ![snapshot respondsToSelector:@selector(deleteSectionsWithIdentifiers:)])return snapshot;
-    int64_t count=ginppaiInt(snapshot,@"numberOfSections");if(count<1 || count>32)return snapshot;
-    NSArray *sections=((id(*)(id,SEL))objc_msgSend)(snapshot,@selector(sectionIdentifiers));
-    if(![sections isKindOfClass:NSArray.class] || sections.count!=(NSUInteger)count)return snapshot;
-    NSInteger index=((NSInteger(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"specialFriendSectionIndex:"),sections);
-    if(index<0 || (NSUInteger)index>=sections.count)return snapshot;
-    id copy=[snapshot copy];if(copy==snapshot)return snapshot;
-    ((void(*)(id,SEL,id))objc_msgSend)(copy,@selector(deleteSectionsWithIdentifiers:),@[sections[index]]);
-    NSMutableArray *expected=[sections mutableCopy];[expected removeObjectAtIndex:index];
-    NSArray *remaining=((id(*)(id,SEL))objc_msgSend)(copy,@selector(sectionIdentifiers));
-    if(![remaining isEqualToArray:expected])return snapshot;
-    event(@"ginppai.friendPromotion.filtered");return copy;
-}
+#include "FriendAdSnapshot.inc"
+
 static id ginppaiFriendSnapshot(id snapshot) {
     if(!option(@"hideFriendFeed") || !ginppaiNativeBuildVerified)return snapshot;
     NSArray *items=ginppaiFriendItems(snapshot);

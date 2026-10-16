@@ -76,6 +76,7 @@ with zipfile.ZipFile(bundle,'w',compression=zipfile.ZIP_DEFLATED) as archive:
              'COPYING.MIT':ROOT/'COPYING.MIT', 'NOTICE.md':ROOT/'NOTICE.md',
              'tools/prepare_ipa.py':ROOT/'tools/prepare_ipa.py',
              'tools/native_patch.py':ROOT/'tools/native_patch.py',
+             'tools/ad_native_patch.py':ROOT/'tools/ad_native_patch.py',
              'tools/native_layouts.py':ROOT/'tools/native_layouts.py'}
     for path in (ROOT/'docs').glob('*'):
         if path.suffix in ['.md','.json']: entries['docs/'+path.name]=path

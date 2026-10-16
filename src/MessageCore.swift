@@ -208,6 +208,15 @@ enum KCTrackerPolicy {
 }
 
 enum KCLayoutPolicy {
+    static func friendAdSectionIndexes(_ sections: [(type: String, name: String)]) -> [Int] {
+        guard (1...32).contains(sections.count),
+              sections.allSatisfy({ $0.type == "FriendsFeedPresentation.FriendsListDataSource.SectionType" }) else { return [] }
+        let ads: Set<String> = ["bizboard", "specialFriend"]
+        let matches = sections.indices.filter { ads.contains(sections[$0].name) }
+        // Duplicate identifiers indicate an invalid or unexpected snapshot.
+        guard Set(matches.map { sections[$0].name }).count == matches.count else { return [] }
+        return matches
+    }
     static func specialFriendSectionIndex(_ sections: [(type: String, name: String)]) -> Int? {
         guard (1...32).contains(sections.count), sections.allSatisfy({ $0.type == "FriendsFeedPresentation.FriendsListDataSource.SectionType" }) else { return nil }
         let matches = sections.indices.filter { sections[$0].name == "specialFriend" }
@@ -385,6 +394,18 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
     @objc public static func friendListIndex(_ objects: [Any]) -> Int {
         guard (1...2).contains(objects.count) else { return -1 }
         return KCLayoutPolicy.friendListIndex(objects.map(friendChipRole)) ?? -1
+    }
+    @objc public static func friendAdSectionIndexes(_ objects: [Any]) -> [NSNumber] {
+        guard (1...32).contains(objects.count) else { return [] }
+        var sections = [(type: String, name: String)]()
+        for object in objects {
+            let value = (object as? AnyHashable)?.base ?? object
+            let mirror = Mirror(reflecting: value)
+            guard mirror.displayStyle == .enum, mirror.children.isEmpty,
+                  String(reflecting: type(of: value)) == "FriendsFeedPresentation.FriendsListDataSource.SectionType" else { return [] }
+            sections.append((String(reflecting: type(of: value)), String(describing: value)))
+        }
+        return KCLayoutPolicy.friendAdSectionIndexes(sections).map { NSNumber(value: $0) }
     }
     @objc public static func specialFriendSectionIndex(_ objects: [Any]) -> Int {
         guard (1...32).contains(objects.count) else { return -1 }

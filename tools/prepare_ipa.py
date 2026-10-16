@@ -125,6 +125,7 @@ def main():
     parser.add_argument('--dylib',type=Path,action='append',required=True)
     parser.add_argument('--country-ui',action='store_true',help='Apply a verified KakaoTalk UI-only country patch.')
     parser.add_argument('--features',action='store_true',help='Add verified native message-save callbacks for Ginppai features.')
+    parser.add_argument('--ad-features',action='store_true',help='Prepare exact-build 26.8.0 AdFitPM Thread/Focus switches before signing.')
     parser.add_argument('--display-name',help='Set the main app name in all bundled languages before signing.')
     args=parser.parse_args()
     if args.output.exists(): parser.error('Output already exists; choose a new filename.')
@@ -150,6 +151,14 @@ def main():
             raise ValueError('Customizer supports verified KakaoTalk 26.7.3 and 26.8.0 builds.')
         if args.display_name is not None: custom_branding(app,args.display_name)
         executable=app/info['CFBundleExecutable'];binary=bytearray(executable.read_bytes())
+        if args.ad_features:
+            if info.get('CFBundleShortVersionString') != '26.8.0' or info.get('CFBundleVersion') != '2026.9.14.1':
+                raise ValueError('Advertisement callbacks require KakaoTalk 26.8.0 build 2026.9.14.1.')
+            if not any(p.name == 'GinppaiKakaoCustomizer.dylib' for p in args.dylib):
+                raise ValueError('Advertisement callbacks require GinppaiKakaoCustomizer.dylib.')
+            from ad_native_patch import patch as patch_ads
+            sdk=app/'Frameworks/AdFitPM.framework/AdFitPM'
+            sdk.write_bytes(patch_ads(sdk.read_bytes()))
         if args.country_ui:
             if info.get('CFBundleShortVersionString') not in {'26.7.3','26.8.0'}: raise ValueError('Country patch requires 26.7.3 or 26.8.0.')
             binary=country_patch(binary)

@@ -32,3 +32,12 @@
 확인 환경은 iOS 26.1 / LiveContainer입니다. 탈옥 실기와 SideStore 직접 설치는 미검증입니다. [기능별 범위](docs/FEATURES.md) / [26.8.0 검증 기록](docs/kakao-26.8-support.md)
 
 만든이 [@nogadamachine](https://www.instagram.com/nogadamachine/). Kakao와 관계없는 비공식 프로젝트입니다. [GPL-3.0 및 저작권 고지](NOTICE.md).
+
+
+## 검토용 보완
+
+기존 광고 숨기기 옵션에 추가 광고 경로와 광고 전용 영역의 높이 처리를 보완하고, 친구 목록의 확인된 광고 섹션을 표시 스냅샷에서 제외합니다. 카카오 로그인 단축어를 추가하고 사용하는 안내 화면도 제공합니다.
+
+[추가 광고 차단](docs/ADFIX.md) / [광고 여백과 친구 목록](docs/AD-SPACING.md) / [로그인 단축어](docs/LOGIN-SHORTCUT.md) / [이번 기여의 검증 범위](docs/CONTRIBUTION-VALIDATION.md)
+
+위 보완은 기존 3.1.0의 실기 검증 기록과 구분되는 검토용 변경입니다. 새 여백·친구 목록 섹션 및 설정 화면은 기기 검증이 필요합니다.

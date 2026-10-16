@@ -256,6 +256,8 @@ static void blockLoad(NSString *className, NSString *selectorName, NSString *fai
     replace(cls, sel, imp, method_getTypeEncoding(method));
 }
 
+#include "AdSpacing.inc"
+
 static void hideAd(UIView *view) {
     if (!objc_getAssociatedObject(view, &observedKey)) {
         objc_setAssociatedObject(view, &observedKey, @YES, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
@@ -270,25 +272,15 @@ static void hideAd(UIView *view) {
     view.alpha = 0;
     view.userInteractionEnabled = NO;
     view.accessibilityElementsHidden = YES;
+    if(kcIsAdSpacingCell(view))kcAdCollapseOwnHeight(view);
 }
 
-static void collapseMoreAd(void) {
-    Class cls = NSClassFromString(@"MoreTab.NativeADUIView");
-    if (!cls || ![cls isSubclassOfClass:UIView.class]) return;
-    Method fit = class_getInstanceMethod(cls, @selector(sizeThatFits:));
-    if (fit) replace(cls, @selector(sizeThatFits:), imp_implementationWithBlock(^CGSize(UIView *view, CGSize size) {
-        event(@"collapsed:MoreTab.NativeADUIView.sizeThatFits");
-        return CGSizeMake(size.width, 0);
-    }), method_getTypeEncoding(fit));
-    Method intrinsic = class_getInstanceMethod(cls, @selector(intrinsicContentSize));
-    if (intrinsic) replace(cls, @selector(intrinsicContentSize), imp_implementationWithBlock(^CGSize(UIView *view) {
-        return CGSizeMake(UIViewNoIntrinsicMetric, 0);
-    }), method_getTypeEncoding(intrinsic));
-}
 
 static void hideClass(NSString *name) {
+    static const char hiddenClassKey;
     Class cls = NSClassFromString(name);
-    if (!cls || ![cls isSubclassOfClass:UIView.class]) return;
+    if (!cls || ![cls isSubclassOfClass:UIView.class] || objc_getAssociatedObject(cls,&hiddenClassKey)) return;
+    objc_setAssociatedObject(cls,&hiddenClassKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     for (NSString *selector in @[@"didMoveToWindow", @"layoutSubviews"]) {
         SEL sel = NSSelectorFromString(selector);
         Method m = class_getInstanceMethod(cls, sel);
@@ -1070,7 +1062,8 @@ static void installProfileDownload(void) {
 }
 
 #include "CustomizationFeatures.inc"
-static NSDictionary *ginppaiReport(void) {return @{@"upstream":@"v1.5.0-dev.9",@"commit":@"70f43985acdb0f9fe49d5cda0b88676583aca2d1",@"capabilities":ginppaiCapabilities?:@{},@"bubbleLayout":ginppaiLayoutDiagnostics?:@{},@"unreadCalculation":ginppaiUnreadProbe?:@{},@"universalCover":ginppaiCoverProbe?:@{}};}
+#include "AdditionalAds.inc"
+static NSDictionary *ginppaiReport(void) {return @{@"upstream":@"v1.5.0-dev.9",@"commit":@"70f43985acdb0f9fe49d5cda0b88676583aca2d1",@"capabilities":ginppaiCapabilities?:@{},@"additionalAds":kcAdditionalAdStatus?:@{},@"bubbleLayout":ginppaiLayoutDiagnostics?:@{},@"unreadCalculation":ginppaiUnreadProbe?:@{},@"universalCover":ginppaiCoverProbe?:@{}};}
 
 __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
     @autoreleasepool {
@@ -1102,6 +1095,8 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
         installInitialOpenChatPreference();
         installSettingsEntry();
         installCustomizationFeatures();
+        installAdditionalAdBlocking();
+        installAdSpacing();
         installProfileDownload();
         installNavigationConvenience();
         dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });

@@ -2,7 +2,7 @@
 static NSArray<NSDictionary *> *customizationGroups(void) {
     return @[
       @{@"title":@"화면",@"icon":@"rectangle.3.group",@"summary":@"광고와 하단 탭 정리",@"rows":@[
-        @[@"hideAds",@"광고와 프로모션 숨기기",@"지원되는 광고를 차단하고 친구 목록의 특별한 친구 프로모션 영역을 숨깁니다."],
+        @[@"hideAds",@"광고와 프로모션 숨기기",@"지원되는 광고를 차단하고 친구 목록의 특별한 친구 프로모션 영역을 숨깁니다. 확인된 광고 전용 영역의 빈 여백도 줄입니다."],
         @[@"hideShortForm",@"숏폼 없이 사용",@"숏폼을 숨기고 오픈채팅 목록을 바로 엽니다."],
         @[@"preferOpenChat",@"오픈채팅 먼저 보기",@"지금 탭을 열 때 오픈채팅 목록부터 표시합니다."],
         @[@"hideShopping",@"쇼핑 탭 숨기기",@"하단 메뉴에서 쇼핑을 뺍니다."],
@@ -38,6 +38,7 @@ static NSArray<NSDictionary *> *customizationGroups(void) {
       @{@"title":@"사용 방식",@"icon":@"slider.horizontal.3",@"summary":@"시작 화면, 국가와 빠른 동작",@"rows":@[
         @[@"startupTab",@"처음 열 화면",@"카카오톡을 새로 실행할 때 사용할 탭을 고릅니다."],
         @[@"countryISO",@"화면 국가와 지역",@"화면 구성만 선택합니다. 계정과 전화번호의 국가는 바뀌지 않습니다."],
+        @[@"loginShortcut",@"카카오 로그인 단축어",@"앱 미설치 안내가 뜰 때 사용하는 단축어를 추가하고 설치 이유와 사용 방법을 확인합니다."],
         @[@"externalBrowser",@"링크를 기본 브라우저에서 열기",@"채팅의 일반 웹 링크를 iPhone에 설정된 브라우저로 엽니다."],
         @[@"scrollTopOnRetap",@"오픈채팅 다시 누르면 맨 위로",@"하단 오픈채팅 탭을 한 번 더 눌러 목록 처음으로 돌아갑니다."],
         @[@"quickSettings",@"더보기에서 설정 바로 열기",@"더보기 탭을 두 번 누르거나 길게 눌러 Ginppai 설정을 엽니다."]]}
@@ -97,6 +98,8 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 }
 @end
 
+#include "LoginShortcutGuide.inc"
+
 @implementation KCSettingsController
 - (void)viewDidLoad {
     [super viewDidLoad];self.title=@"Ginppai";
@@ -149,10 +152,14 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 @implementation KCOptionsController
 - (void)viewDidLoad {[super viewDidLoad];self.title=self.group[@"title"];}
 - (NSInteger)tableView:(UITableView *)table numberOfRowsInSection:(NSInteger)section {return [self.group[@"rows"] count];}
-- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {return @"변경 후 위쪽의 '적용 후 종료'를 누르고 카카오톡을 다시 실행해 주세요. 현재 화면이나 설치 환경에서 사용할 수 없는 옵션은 회색으로 표시됩니다.";}
+- (NSString *)tableView:(UITableView *)table titleForFooterInSection:(NSInteger)section {return @"변경 후 위쪽의 '적용 후 종료'를 누르고 카카오톡을 다시 실행해 주세요. 카카오 로그인 단축어는 안내 화면에서 추가하면 바로 사용할 수 있습니다. 현재 화면이나 설치 환경에서 사용할 수 없는 옵션은 회색으로 표시됩니다.";}
 - (UITableViewCell *)tableView:(UITableView *)table cellForRowAtIndexPath:(NSIndexPath *)index {
     UITableViewCell *cell=customizationCell();NSArray *row=self.group[@"rows"][index.row];NSString *key=row[0];
     cell.textLabel.text=row[1];cell.detailTextLabel.text=row[2];
+    if([key isEqualToString:@"loginShortcut"]) {
+        cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;
+        return cell;
+    }
     if([key isEqualToString:@"startupTab"] || [key isEqualToString:@"countryISO"]) {
         cell.detailTextLabel.text=[key isEqualToString:@"startupTab"]?startupName(savedOptions[key]):countryName(savedOptions[key]);
         cell.accessoryType=UITableViewCellAccessoryDisclosureIndicator;
@@ -179,7 +186,8 @@ static void openCustomizationURL(NSString *value,UIViewController *host) {
 }
 - (void)tableView:(UITableView *)table didSelectRowAtIndexPath:(NSIndexPath *)index {
     [table deselectRowAtIndexPath:index animated:YES];NSString *key=self.group[@"rows"][index.row][0];
-    if([key isEqualToString:@"startupTab"])[self.navigationController pushViewController:[KCStartupController new] animated:YES];
+    if([key isEqualToString:@"loginShortcut"])[self.navigationController pushViewController:[KCLoginShortcutController new] animated:YES];
+    else if([key isEqualToString:@"startupTab"])[self.navigationController pushViewController:[KCStartupController new] animated:YES];
     else if([key isEqualToString:@"countryISO"] && countrySupport)[self.navigationController pushViewController:[KCCountryController new] animated:YES];
 }
 @end
