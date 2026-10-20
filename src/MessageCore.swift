@@ -90,6 +90,43 @@ enum KCRecord {
         }
         return result
     }
+    static func externalBrowserURL(_ candidate: Any?) -> URL? {
+        guard let candidate, let value = unwrap(candidate) else { return nil }
+        let url: URL?
+        if let u = value as? URL { url = u }
+        else if let s = value as? String { url = URL(string: s) }
+        else { url = nil }
+        guard let url, ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+              let host = url.host, !host.isEmpty else { return nil }
+        return url
+    }
+    static func nestedURL(_ source: Any?, depth: Int = 0) -> URL? {
+        guard depth < 6, let source, let value = unwrap(source) else { return nil }
+        if let url = externalBrowserURL(value) { return url }
+        for child in Mirror(reflecting: value).children {
+            if ["storage", "value", "publisher", "subject", "currentValue"].contains(child.label ?? "") || child.label == nil {
+                if let url = nestedURL(child.value, depth: depth + 1) { return url }
+            }
+        }
+        return nil
+    }
+    static func inAppBrowserURL(_ object: Any, allowedTypes: Set<String> = ["KakaoTalk.KAOInAppWebViewController"]) -> URL? {
+        guard allowedTypes.contains(String(reflecting: type(of: object))) else { return nil }
+        for name in ["navigationUrl", "_initialUrl", "initialUrl", "url"] {
+            if let fieldValue = field(object, name), let url = nestedURL(fieldValue) {
+                return url
+            }
+        }
+        #if canImport(ObjectiveC)
+        if let webView = field(object, "currentWebView") as? NSObject,
+           webView.responds(to: NSSelectorFromString("URL")),
+           let raw = webView.perform(NSSelectorFromString("URL"))?.takeUnretainedValue(),
+           let url = externalBrowserURL(raw) {
+            return url
+        }
+        #endif
+        return nil
+    }
 }
 
 enum KCMessagePresentation {
@@ -425,6 +462,9 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
             senderID: input["senderID"] as? String ?? "", myID: input["myID"] as? String ?? "",
             memberIDs: members, watermarks: watermarks,
             activeCount: (input["activeCount"] as? NSNumber)?.intValue ?? members.count) as NSDictionary
+    }
+    @objc public static func inAppBrowserURL(_ object: AnyObject) -> NSURL? {
+        KCRecord.inAppBrowserURL(object) as NSURL?
     }
 }
 

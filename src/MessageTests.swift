@@ -224,6 +224,11 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         let page = KCHistoryPolicy.searchRows(archive, query: "")
         let newestID = page.first?["logID"] as? String
         check(page.count == 500 && newestID == "529", "Display stays bounded and sorts newest first")
+        check(KCRecord.externalBrowserURL(URL(string: "https://example.test/path?q=1")!)?.absoluteString == "https://example.test/path?q=1", "Accepts HTTPS URL for external browser")
+        check(KCRecord.externalBrowserURL("http://example.test/page")?.absoluteString == "http://example.test/page", "Accepts HTTP string for external browser")
+        for invalid in ["kakaotalk://inappbrowser?url=https://example.test", "mailto:user@example.test", "tel:01012345678", "https:///missing-host", "javascript:alert(1)", "file:///tmp/test.html"] {
+            check(KCRecord.externalBrowserURL(invalid) == nil, "Rejects non-web or hostless URLs for external browser")
+        }
         print("Message policy tests: \(passed) passed")
     }
 }

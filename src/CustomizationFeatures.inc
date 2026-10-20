@@ -392,6 +392,121 @@ static void ginppaiInstallTyping(void) {
     if(patched)[installed addObject:@"ChatInputController isBlockTypingAction Swift getter"];
 }
 
+static const char ginppaiBrowserInterceptedKey;
+static const char ginppaiBrowserFallbackKey;
+static const char ginppaiNavBarUnhiddenAtKey;
+static _Thread_local BOOL ginppaiBrowserFallbackActive;
+static NSURL *ginppaiExternalURL(id value) {
+    NSURL *url=[value isKindOfClass:NSURL.class]?value:([value isKindOfClass:NSString.class]?[NSURL URLWithString:value]:nil);
+    if(!url.host.length || ![@[@"http",@"https"] containsObject:url.scheme.lowercaseString])return nil;
+    return url;
+}
+static UIViewController *ginppaiInAppWebViewController(UIViewController *vc) {
+    Class inAppClass=NSClassFromString(@"KakaoTalk.KAOInAppWebViewController");
+    if(!inAppClass || !vc)return nil;
+    if([vc isKindOfClass:inAppClass])return vc;
+    if([vc isKindOfClass:UINavigationController.class]) {
+        NSArray<UIViewController *> *children=((UINavigationController *)vc).viewControllers;
+        if(children.count==1 && [children.firstObject isKindOfClass:inAppClass])return children.firstObject;
+    }
+    return nil;
+}
+static NSURL *ginppaiControllerExternalURL(UIViewController *vc) {
+    if(!vc || objc_getAssociatedObject(vc,&ginppaiBrowserFallbackKey))return nil;
+    NSURL *url=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMessageBridge"),NSSelectorFromString(@"inAppBrowserURL:"),vc);
+    return ginppaiExternalURL(url);
+}
+static void ginppaiOpenExternalOrFallback(NSURL *url,void(^fallback)(void),void(^onOpen)(void)) {
+    [UIApplication.sharedApplication openURL:url options:@{} completionHandler:^(BOOL success){
+        if(success){if(onOpen)onOpen();event(@"ginppai.browser.open");return;}
+        dispatch_async(dispatch_get_main_queue(),^{
+            ginppaiBrowserFallbackActive=YES;
+            @try{if(fallback)fallback();}
+            @finally{ginppaiBrowserFallbackActive=NO;}
+            event(@"ginppai.browser.fallback");
+        });
+    }];
+}
+static void ginppaiInstallExternalBrowser(Class controller) {
+    SEL sel=NSSelectorFromString(@"processWebUrlLink:appName:userID:inWeb:");Method m=class_getInstanceMethod(controller,sel);
+    if(m){IMP original=method_getImplementation(m);replace(controller,sel,imp_implementationWithBlock(^(id self,id value,id app,id user,BOOL inWeb){
+        NSURL *url=ginppaiBrowserFallbackActive?nil:ginppaiExternalURL(value);
+        if(url)ginppaiOpenExternalOrFallback(url,^{((void(*)(id,SEL,id,id,id,BOOL))original)(self,sel,value,app,user,inWeb);},nil);
+        else ((void(*)(id,SEL,id,id,id,BOOL))original)(self,sel,value,app,user,inWeb);
+    }),method_getTypeEncoding(m));ginppaiCapabilities[@"externalBrowser"]=@YES;}
+    SEL altSel=NSSelectorFromString(@"processWebUrlLink:inWeb:appName:webUrlLink:");Method altMethod=class_getInstanceMethod(controller,altSel);
+    if(altMethod){IMP original=method_getImplementation(altMethod);replace(controller,altSel,imp_implementationWithBlock(^(id self,id message,BOOL inWeb,id app,id value){
+        NSURL *url=ginppaiBrowserFallbackActive?nil:ginppaiExternalURL(value);
+        if(url)ginppaiOpenExternalOrFallback(url,^{((void(*)(id,SEL,id,BOOL,id,id))original)(self,altSel,message,inWeb,app,value);},nil);
+        else ((void(*)(id,SEL,id,BOOL,id,id))original)(self,altSel,message,inWeb,app,value);
+    }),method_getTypeEncoding(altMethod));ginppaiCapabilities[@"externalBrowser"]=@YES;}
+    Class navigator=NSClassFromString(@"KakaoTalk.AppNavigator");
+    SEL moveSel=NSSelectorFromString(@"moveToInAppBrowserWithUrl:");Method moveMethod=class_getInstanceMethod(navigator,moveSel);
+    if(moveMethod){IMP original=method_getImplementation(moveMethod);replace(navigator,moveSel,imp_implementationWithBlock(^(id self,id value){
+        NSURL *url=ginppaiBrowserFallbackActive?nil:ginppaiExternalURL(value);
+        if(url)ginppaiOpenExternalOrFallback(url,^{((void(*)(id,SEL,id))original)(self,moveSel,value);},nil);
+        else ((void(*)(id,SEL,id))original)(self,moveSel,value);
+    }),method_getTypeEncoding(moveMethod));ginppaiCapabilities[@"externalBrowser"]=@YES;}
+    Class baseWeb=NSClassFromString(@"TalkAppBase.TalkBaseWebViewController");
+    SEL policySel=NSSelectorFromString(@"webView:decidePolicyForNavigationAction:decisionHandler:");Method policyMethod=class_getInstanceMethod(baseWeb,policySel);
+    if(policyMethod){IMP original=method_getImplementation(policyMethod);replace(baseWeb,policySel,imp_implementationWithBlock(^(id self,id webView,id action,void(^decision)(NSInteger)){
+        if([objc_getAssociatedObject(self,&ginppaiBrowserInterceptedKey) boolValue]){if(decision)decision(0);return;}
+        ((void(*)(id,SEL,id,id,void(^)(NSInteger)))original)(self,policySel,webView,action,decision);
+    }),method_getTypeEncoding(policyMethod));}
+    SEL loadSel=NSSelectorFromString(@"loadUrl:");Method loadMethod=class_getInstanceMethod(baseWeb,loadSel);
+    if(loadMethod){IMP original=method_getImplementation(loadMethod);replace(baseWeb,loadSel,imp_implementationWithBlock(^(UIViewController *self,id value){
+        Class inAppClass=NSClassFromString(@"KakaoTalk.KAOInAppWebViewController");
+        BOOL eligible=inAppClass && [self isKindOfClass:inAppClass] && self.isViewLoaded && self.view.window &&
+            !objc_getAssociatedObject(self,&ginppaiBrowserFallbackKey) && !objc_getAssociatedObject(self,&ginppaiBrowserInterceptedKey) && !ginppaiBrowserFallbackActive;
+        NSURL *url=eligible?ginppaiExternalURL(value):nil;
+        if(url)ginppaiOpenExternalOrFallback(url,^{((void(*)(id,SEL,id))original)(self,loadSel,value);},nil);
+        else ((void(*)(id,SEL,id))original)(self,loadSel,value);
+    }),method_getTypeEncoding(loadMethod));}
+    Method barHidden=class_getInstanceMethod(UINavigationBar.class,@selector(setHidden:));
+    if(barHidden){IMP original=method_getImplementation(barHidden);replace(UINavigationBar.class,@selector(setHidden:),imp_implementationWithBlock(^(UINavigationBar *self,BOOL hidden){
+        if(!hidden && self.isHidden)objc_setAssociatedObject(self,&ginppaiNavBarUnhiddenAtKey,@(CACurrentMediaTime()),OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        else if(hidden)objc_setAssociatedObject(self,&ginppaiNavBarUnhiddenAtKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        ((void(*)(id,SEL,BOOL))original)(self,@selector(setHidden:),hidden);
+    }),method_getTypeEncoding(barHidden));}
+    SEL pushSel=@selector(pushViewController:animated:);Method pushMethod=class_getInstanceMethod(UINavigationController.class,pushSel);
+    if(pushMethod){IMP original=method_getImplementation(pushMethod);replace(UINavigationController.class,pushSel,imp_implementationWithBlock(^(UINavigationController *self,UIViewController *vc,BOOL animated){
+        UIViewController *webVC=ginppaiBrowserFallbackActive?nil:ginppaiInAppWebViewController(vc);
+        NSURL *url=ginppaiControllerExternalURL(webVC);
+        if(url){
+            objc_setAssociatedObject(webVC,&ginppaiBrowserInterceptedKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            UINavigationBar *bar=self.navigationBar;
+            NSNumber *unhiddenAt=bar?objc_getAssociatedObject(bar,&ginppaiNavBarUnhiddenAtKey):nil;
+            BOOL restoreBarHidden=unhiddenAt && (CACurrentMediaTime()-unhiddenAt.doubleValue)<0.05;
+            if(restoreBarHidden)[bar setHidden:YES];
+            ginppaiOpenExternalOrFallback(url,^{
+                objc_setAssociatedObject(webVC,&ginppaiBrowserInterceptedKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                objc_setAssociatedObject(webVC,&ginppaiBrowserFallbackKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                if(restoreBarHidden)[bar setHidden:NO];
+                ((void(*)(id,SEL,id,BOOL))original)(self,pushSel,vc,animated);
+                if([webVC respondsToSelector:loadSel])((void(*)(id,SEL,id))objc_msgSend)(webVC,loadSel,url);
+            },nil);
+            return;
+        }
+        ((void(*)(id,SEL,id,BOOL))original)(self,pushSel,vc,animated);
+    }),method_getTypeEncoding(pushMethod));ginppaiCapabilities[@"externalBrowser"]=@YES;}
+    SEL presentSel=@selector(presentViewController:animated:completion:);Method presentMethod=class_getInstanceMethod(UIViewController.class,presentSel);
+    if(presentMethod){IMP original=method_getImplementation(presentMethod);replace(UIViewController.class,presentSel,imp_implementationWithBlock(^(UIViewController *self,UIViewController *vc,BOOL animated,void(^completion)(void)){
+        UIViewController *webVC=ginppaiBrowserFallbackActive?nil:ginppaiInAppWebViewController(vc);
+        NSURL *url=ginppaiControllerExternalURL(webVC);
+        if(url){
+            objc_setAssociatedObject(webVC,&ginppaiBrowserInterceptedKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            ginppaiOpenExternalOrFallback(url,^{
+                objc_setAssociatedObject(webVC,&ginppaiBrowserInterceptedKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                objc_setAssociatedObject(webVC,&ginppaiBrowserFallbackKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                ((void(*)(id,SEL,id,BOOL,id))original)(self,presentSel,vc,animated,completion);
+                if([webVC respondsToSelector:loadSel])((void(*)(id,SEL,id))objc_msgSend)(webVC,loadSel,url);
+            },completion);
+            return;
+        }
+        ((void(*)(id,SEL,id,BOOL,id))original)(self,presentSel,vc,animated,completion);
+    }),method_getTypeEncoding(presentMethod));ginppaiCapabilities[@"externalBrowser"]=@YES;}
+}
+
 #include "FriendList.inc"
 #include "DeletedMessages.inc"
 static void installCustomizationFeatures(void) {
@@ -432,19 +547,7 @@ static void installCustomizationFeatures(void) {
         Class cls=NSClassFromString(@"Chat");SEL sel=NSSelectorFromString(@"displayUnreadCount");Method m=class_getInstanceMethod(cls,sel);
         if(m){IMP original=method_getImplementation(m);replace(cls,sel,imp_implementationWithBlock(^id(id self){int64_t count=ginppaiInt(self,@"unreadCount");if(count>0){event(@"ginppai.unread.full");return [NSString stringWithFormat:@"%lld",(long long)count];}return ((id(*)(id,SEL))original)(self,sel);}),method_getTypeEncoding(m));ginppaiCapabilities[@"uncapChatUnread"]=@YES;}
     }
-    if(option(@"externalBrowser")) {
-        SEL sel=NSSelectorFromString(@"processWebUrlLink:appName:userID:inWeb:");Method m=class_getInstanceMethod(controller,sel);
-        if(m){IMP original=method_getImplementation(m);replace(controller,sel,imp_implementationWithBlock(^(id self,id value,id app,id user,BOOL inWeb){
-            NSURL *url=[value isKindOfClass:NSURL.class]?value:([value isKindOfClass:NSString.class]?[NSURL URLWithString:value]:nil);
-            if(url.host.length && [@[@"http",@"https"] containsObject:url.scheme.lowercaseString]){
-                [UIApplication.sharedApplication openURL:url options:@{} completionHandler:^(BOOL success){
-                    if(success){event(@"ginppai.browser.open");return;}
-                    dispatch_async(dispatch_get_main_queue(),^{((void(*)(id,SEL,id,id,id,BOOL))original)(self,sel,value,app,user,inWeb);event(@"ginppai.browser.fallback");});
-                }];
-            }
-            else ((void(*)(id,SEL,id,id,id,BOOL))original)(self,sel,value,app,user,inWeb);
-        }),method_getTypeEncoding(m));ginppaiCapabilities[@"externalBrowser"]=@YES;}
-    }
+    if(option(@"externalBrowser"))ginppaiInstallExternalBrowser(controller);
     if(option(@"disableSentry"))for(NSString *name in @[@"SentrySDKInternal",@"Sentry.SentrySDK"]) {
         Class sdk=NSClassFromString(name);Class meta=object_getClass(sdk);
         for(NSString *methodName in @[@"startWithOptions:",@"startWithConfigureOptions:"]) {
