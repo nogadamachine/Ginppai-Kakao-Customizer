@@ -218,7 +218,7 @@ static void installSettingsEntry(void) {
     replace(cls,sel,imp_implementationWithBlock(^(UIViewController *vc,BOOL animated){((void (*)(id,SEL,BOOL))original)(vc,sel,animated);addSettingsEntry(vc);}),method_getTypeEncoding(method));
 }
 static NSDictionary *configurationReport(void) {
-    return @{@"active":activeOptions?:@{},@"countrySwitchAvailable":@(countrySupport),@"navigation":navigationReport?:@{},@"countryCount":@(NSLocale.ISOCountryCodes.count)};
+    return @{@"mode":kcAppearanceOnlyBuild?@"ads-shopping-only":@"full",@"nativeProfile":@(kcNativeProfile),@"active":activeOptions?:@{},@"countrySwitchAvailable":@(countrySupport),@"navigation":navigationReport?:@{},@"countryCount":@(NSLocale.ISOCountryCodes.count)};
 }
 
 
@@ -227,10 +227,16 @@ static void failLoad(id loader, NSString *callbackName) {
     dispatch_async(dispatch_get_main_queue(), ^{
         SEL getter = NSSelectorFromString(@"delegate");
         if (![loader respondsToSelector:getter]) return;
+        NSMethodSignature *getterSignature=[loader methodSignatureForSelector:getter];
+        if(getterSignature.numberOfArguments!=2 || strcmp(getterSignature.methodReturnType,"@"))return;
         id delegate = ((id (*)(id, SEL))objc_msgSend)(loader, getter);
         SEL callback = NSSelectorFromString(callbackName);
         if (![delegate respondsToSelector:callback]) return;
-        if ([callbackName hasSuffix:@"error:"]) {
+        BOOL withError=[callbackName hasSuffix:@"error:"];
+        NSMethodSignature *signature=[delegate methodSignatureForSelector:callback];
+        if(signature.numberOfArguments!=(withError?4:3) || strcmp(signature.methodReturnType,"v"))return;
+        for(NSUInteger i=2;i<signature.numberOfArguments;i++)if([signature getArgumentTypeAtIndex:i][0]!='@')return;
+        if (withError) {
             NSError *error = [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCancelled
                 userInfo:@{NSLocalizedDescriptionKey: @"Advertisement disabled locally"}];
             ((void (*)(id, SEL, id, id))objc_msgSend)(delegate, callback, loader, error);
@@ -1072,30 +1078,126 @@ static void installProfileDownload(void) {
 #include "CustomizationFeatures.inc"
 static NSDictionary *ginppaiReport(void) {return @{@"upstream":@"v1.5.0-dev.9",@"commit":@"70f43985acdb0f9fe49d5cda0b88676583aca2d1",@"capabilities":ginppaiCapabilities?:@{},@"bubbleLayout":ginppaiLayoutDiagnostics?:@{},@"unreadCalculation":ginppaiUnreadProbe?:@{},@"universalCover":ginppaiCoverProbe?:@{}};}
 
+// The 26.9.2 profile deliberately bypasses all fixed-address and message hooks.
+static const char shoppingOriginalStateKey;
+static void customizeShoppingOnlyBar(UIView *bar) {
+    NSMutableArray<UIControl *> *buttons=[NSMutableArray new];collectTabButtons(bar,buttons);
+    UITabBarController *controller=mainController(bar);
+    NSArray<UIViewController *> *tabs=controller.viewControllers;
+    BOOL mapped=buttons.count==tabs.count && tabs.count>0;
+    for(NSUInteger i=0;i<buttons.count;i++) {
+        UIControl *button=buttons[i];
+        BOOL shopping=(mapped && [tabKind(tabs[i]) isEqualToString:@"shopping"]) ||
+            [@[@"쇼핑",@"Shopping"] containsObject:button.accessibilityLabel?:@""];
+        if(!shopping) {
+            NSDictionary *prior=objc_getAssociatedObject(button,&shoppingOriginalStateKey);
+            if(prior) {
+                // Do not overwrite a property the native layout already restored.
+                if(button.hidden)button.hidden=[prior[@"hidden"] boolValue];
+                if(!button.userInteractionEnabled)button.userInteractionEnabled=[prior[@"interaction"] boolValue];
+                if(button.accessibilityElementsHidden)button.accessibilityElementsHidden=[prior[@"accessibility"] boolValue];
+                objc_setAssociatedObject(button,&shoppingOriginalStateKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                objc_setAssociatedObject(button,&hiddenTabKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            }
+            continue;
+        }
+        if(!objc_getAssociatedObject(button,&shoppingOriginalStateKey)) {
+            objc_setAssociatedObject(button,&shoppingOriginalStateKey,@{@"hidden":@(button.hidden),@"interaction":@(button.userInteractionEnabled),@"accessibility":@(button.accessibilityElementsHidden)},OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            event(@"tabs:shopping-hidden");
+        }
+        objc_setAssociatedObject(button,&hiddenTabKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        button.hidden=YES;button.userInteractionEnabled=NO;button.accessibilityElementsHidden=YES;
+    }
+    // Restore a visible tab only if the saved selection points at the hidden one.
+    NSUInteger selected=controller.selectedIndex;
+    if(!mapped || selected>=buttons.count || !objc_getAssociatedObject(buttons[selected],&hiddenTabKey) ||
+       objc_getAssociatedObject(controller,&redirectPendingKey) || controller.presentedViewController)return;
+    NSUInteger target=NSNotFound;
+    for(NSUInteger i=0;i<buttons.count;i++)if(!buttons[i].hidden){target=i;break;}
+    if(target==NSNotFound)return;
+    objc_setAssociatedObject(controller,&redirectPendingKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UITabBarController *weak=controller;
+    __weak UIView *weakBar=bar;
+    dispatch_async(dispatch_get_main_queue(),^{
+        UITabBarController *current=weak;UIView *currentBar=weakBar;if(!current)return;
+        objc_setAssociatedObject(current,&redirectPendingKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+        if(!currentBar || current.selectedIndex!=selected || current.presentedViewController)return;
+        NSMutableArray<UIControl *> *currentButtons=[NSMutableArray new];collectTabButtons(currentBar,currentButtons);
+        if(currentButtons.count!=current.viewControllers.count || selected>=currentButtons.count ||
+           !objc_getAssociatedObject(currentButtons[selected],&hiddenTabKey))return;
+        for(NSUInteger i=0;i<currentButtons.count;i++)if(!currentButtons[i].hidden) {
+            if(selectNativeTab(current,i))event(@"tabs:hidden-shopping-selection-repaired");
+            break;
+        }
+    });
+}
+static void installShoppingOnlyCustomization(void) {
+    Class cls=NSClassFromString(@"KakaoTalk.MainTabBarView");
+    if(!cls || ![cls isSubclassOfClass:UIView.class])return;
+    for(NSString *name in @[@"layoutSubviews",@"didMoveToWindow"]) {
+        SEL sel=NSSelectorFromString(name);Method method=class_getInstanceMethod(cls,sel);
+        if(!method || method_getNumberOfArguments(method)!=2)continue;
+        char result[16];method_getReturnType(method,result,sizeof(result));if(strcmp(result,"v"))continue;
+        IMP original=method_getImplementation(method);
+        replace(cls,sel,imp_implementationWithBlock(^(UIView *view){
+            ((void(*)(id,SEL))original)(view,sel);customizeShoppingOnlyBar(view);
+        }),method_getTypeEncoding(method));
+    }
+    SEL ax=@selector(accessibilityElements);Method method=class_getInstanceMethod(cls,ax);
+    if(!method || method_getNumberOfArguments(method)!=2)return;
+    char result[16];method_getReturnType(method,result,sizeof(result));if(strcmp(result,"@"))return;
+    IMP original=method_getImplementation(method);
+    replace(cls,ax,imp_implementationWithBlock(^NSArray *(UIView *view){
+        NSArray *items=((id(*)(id,SEL))original)(view,ax);if(![items isKindOfClass:NSArray.class])return items;
+        return [items filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id item,NSDictionary *bindings){
+            return !([item isKindOfClass:UIView.class] && objc_getAssociatedObject(item,&hiddenTabKey));
+        }]];
+    }),method_getTypeEncoding(method));
+}
+static void installAdvertisementBlocking(void) {
+    if(!option(@"hideAds"))return;
+    blockLoad(@"AdFitPM.AdFitNativeAdLoader", @"loadAdWithKeyword:regionId:duplicateKey:", @"nativeAdLoaderDidFailToReceiveAd:error:");
+    blockLoad(@"AdFitPM.FriendFeedAdLoader", @"loadAdWithPosition:", @"friendFeedAdLoaderDidFailToReceiveAd:error:");
+    blockLoad(@"AdFitPM.BizBoardAdView", @"loadAd", @"bizBoardAdViewDidFailToReceiveAd:");
+    blockLoad(@"AdFitPM.AdFitGlobalBannerAdView", @"loadAd", nil);
+    blockLoad(@"AdFitPM.BizBoardProvider", @"firstLoadWithDuplicateKey:", nil);
+    blockLoad(@"TalkAppBase.BizboardManager", @"firstLoad", nil);
+    for (NSString *name in @[
+        @"MoreTab.NativeADUIView", @"MoreTab.LocalBizboardUIView", @"TalkAppBase.BizboardCell",
+        @"TalkAppBase.BizboardCollectionCell", @"TalkAppBase.BizboardCollectionCellWithoutSoundManager",
+        @"TalkAppBase.ChatsGlobalBizboardCell", @"TalkAppBase.GlobalBizboardCollectionCell",
+        @"AdFitPM.AdFitAdView", @"AdFitPM.BizBoardAdView", @"AdFitPM.AdFitGlobalBannerAdView",
+        @"AdFitPM.BizBoardTemplate", @"AdFitPM.BizBoardCell", @"AdFitPM.MultiNativeAdView"
+    ]) hideClass(name);
+}
+
 __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
     @autoreleasepool {
         NSBundle *bundle = NSBundle.mainBundle;
         NSString *bundleID=bundle.bundleIdentifier;
         if (!([bundleID isEqualToString:@"com.iwilab.KakaoTalk"] || [bundleID hasPrefix:@"com.iwilab.KakaoTalk."]) ||
-            !kcSelectNativeBuild()) return;
-        loadOptions();
+            !kcSelectBuild()) return;
+        if(kcAppearanceOnlyBuild) {
+            NSMutableDictionary *only=[defaultOptions() mutableCopy];
+            for(NSString *key in toggleKeys())only[key]=@NO;
+            only[@"hideAds"]=@YES;only[@"hideShopping"]=@YES;only[@"hideMoreNow"]=@YES;
+            activeOptions=[only copy];
+        } else loadOptions();
         counts = [NSMutableDictionary dictionary];
         installed = [NSMutableArray array];
         viewSamples = [NSMutableArray array];
-        if(option(@"hideAds")) {
-        blockLoad(@"AdFitPM.AdFitNativeAdLoader", @"loadAdWithKeyword:regionId:duplicateKey:", @"nativeAdLoaderDidFailToReceiveAd:error:");
-        blockLoad(@"AdFitPM.FriendFeedAdLoader", @"loadAdWithPosition:", @"friendFeedAdLoaderDidFailToReceiveAd:error:");
-        blockLoad(@"AdFitPM.BizBoardAdView", @"loadAd", @"bizBoardAdViewDidFailToReceiveAd:");
-        blockLoad(@"AdFitPM.AdFitGlobalBannerAdView", @"loadAd", nil);
-        blockLoad(@"AdFitPM.BizBoardProvider", @"firstLoadWithDuplicateKey:", nil);
-        blockLoad(@"TalkAppBase.BizboardManager", @"firstLoad", nil);
-        for (NSString *name in @[
-            @"MoreTab.NativeADUIView", @"MoreTab.LocalBizboardUIView", @"TalkAppBase.BizboardCell",
-            @"TalkAppBase.BizboardCollectionCell", @"TalkAppBase.BizboardCollectionCellWithoutSoundManager",
-            @"TalkAppBase.ChatsGlobalBizboardCell", @"TalkAppBase.GlobalBizboardCollectionCell",
-            @"AdFitPM.AdFitAdView", @"AdFitPM.BizBoardAdView", @"AdFitPM.AdFitGlobalBannerAdView",
-            @"AdFitPM.BizBoardTemplate", @"AdFitPM.BizBoardCell", @"AdFitPM.MultiNativeAdView"
-        ]) hideClass(name);
+        installAdvertisementBlocking();
+        if(kcAppearanceOnlyBuild) {
+            collapseMoreAd();
+            // Resolve and validate SwiftUI's current rendering ABI; mutate only ad/promotional witnesses.
+            NSDictionary *render=((id(*)(id,SEL,id))objc_msgSend)(NSClassFromString(@"KCMoreTabRendering"),NSSelectorFromString(@"install:"),@{@"hideAds":@YES,@"hideMoreNow":@YES});
+            ginppaiCapabilities=[@{@"hideAdsSwiftUI":@([render[@"capabilities"][@"hideAds"] boolValue]),@"hideKakaoNowPromo":@([render[@"capabilities"][@"hideMoreNow"] boolValue])} mutableCopy];
+            for(NSString *name in render[@"installed"])[installed addObject:[@"SwiftUI advertisement rendering: " stringByAppendingString:name]];
+            ginppaiInstallFriendAdvertisingOnly();
+            installShoppingOnlyCustomization();
+            dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
+            NSLog(@"[Ginppai-Kakao-Customizer] %@ loaded in ads/shopping-only mode", @KC_VERSION);
+            return;
         }
         installTabCustomization();
         installNowReselectionFix();

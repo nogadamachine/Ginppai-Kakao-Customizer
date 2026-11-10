@@ -213,6 +213,13 @@ enum KCLayoutPolicy {
         let matches = sections.indices.filter { sections[$0].name == "specialFriend" }
         return matches.count == 1 ? matches[0] : nil
     }
+    static func advertisingFriendSectionIndexes(_ sections: [(type: String, name: String)]) -> [Int]? {
+        guard (1...32).contains(sections.count), sections.allSatisfy({ $0.type == "FriendsFeedPresentation.FriendsListDataSource.SectionType" }) else { return nil }
+        let roles: Set<String> = ["bizboard", "specialFriend"]
+        let matches = sections.indices.filter { roles.contains(sections[$0].name) }
+        guard Set(matches.map { sections[$0].name }).count == matches.count else { return nil }
+        return matches
+    }
     static func friendChipRole(typeName: String, caseName: String) -> Int {
         guard typeName.hasPrefix("FriendsFeedPresentation.FriendsTabHeaderView."),
               typeName.hasSuffix(".ChipItem") else { return -1 }
@@ -386,17 +393,26 @@ func ginppaiUnreadCalculator(_ logID: Int64, _ userID: Int64, _ readMarks: [Int6
         guard (1...2).contains(objects.count) else { return -1 }
         return KCLayoutPolicy.friendListIndex(objects.map(friendChipRole)) ?? -1
     }
-    @objc public static func specialFriendSectionIndex(_ objects: [Any]) -> Int {
-        guard (1...32).contains(objects.count) else { return -1 }
+    private static func friendSectionRoles(_ objects: [Any]) -> [(type: String, name: String)]? {
+        guard (1...32).contains(objects.count) else { return nil }
         var sections = [(type: String, name: String)]()
         for object in objects {
             let value = (object as? AnyHashable)?.base ?? object, mirror = Mirror(reflecting: (object as? AnyHashable)?.base ?? object)
-            guard mirror.displayStyle == .enum, mirror.children.isEmpty else { return -1 }
+            guard mirror.displayStyle == .enum, mirror.children.isEmpty else { return nil }
             let name = String(reflecting: type(of: value))
-            guard name == "FriendsFeedPresentation.FriendsListDataSource.SectionType" else { return -1 }
+            guard name == "FriendsFeedPresentation.FriendsListDataSource.SectionType" else { return nil }
             sections.append((name, String(describing: value)))
         }
+        return sections
+    }
+    @objc public static func specialFriendSectionIndex(_ objects: [Any]) -> Int {
+        guard let sections = friendSectionRoles(objects) else { return -1 }
         return KCLayoutPolicy.specialFriendSectionIndex(sections) ?? -1
+    }
+    @objc public static func advertisingFriendSectionIndexes(_ objects: [Any]) -> [NSNumber]? {
+        guard let sections = friendSectionRoles(objects),
+              let indexes = KCLayoutPolicy.advertisingFriendSectionIndexes(sections) else { return nil }
+        return indexes.map { NSNumber(value: $0) }
     }
     @objc public static func friendSelectedIndexPath(_ object: AnyObject) -> NSIndexPath? {
         guard String(reflecting: type(of: object)) == "FriendsFeedPresentation.FriendsTabHeaderView",

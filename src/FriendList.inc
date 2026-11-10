@@ -110,6 +110,44 @@ static BOOL ginppaiFriendApplySignature(Method method) {
     for(unsigned int i=2;i<6;i++){method_getArgumentType(method,i,type,sizeof(type));if(i==2 || i==4){if(type[0]!='@')return NO;}else if(type[0]!='B' && type[0]!='c')return NO;}
     return YES;
 }
+// Exact 26.9.2 appearance profile: filter only the two identified advertising roles.
+// UIKit owns the layout update, so removed sections reserve no banner-sized gap.
+static id ginppaiAppearanceAdvertisingSnapshot(id snapshot) {
+    if(!kcAppearanceOnlyBuild || !option(@"hideAds") ||
+       ![snapshot respondsToSelector:@selector(sectionIdentifiers)] ||
+       ![snapshot respondsToSelector:@selector(copyWithZone:)] ||
+       ![snapshot respondsToSelector:@selector(deleteSectionsWithIdentifiers:)])return snapshot;
+    NSArray *sections=((id(*)(id,SEL))objc_msgSend)(snapshot,@selector(sectionIdentifiers));
+    if(![sections isKindOfClass:NSArray.class] || sections.count<1 || sections.count>32)return snapshot;
+    Class bridge=NSClassFromString(@"KCMessageBridge");SEL selector=NSSelectorFromString(@"advertisingFriendSectionIndexes:");
+    if(![bridge respondsToSelector:selector])return snapshot;
+    NSArray *indexes=((id(*)(id,SEL,id))objc_msgSend)(bridge,selector,sections);
+    if(![indexes isKindOfClass:NSArray.class] || indexes.count==0)return snapshot;
+    NSMutableIndexSet *removed=[NSMutableIndexSet new];NSMutableArray *identifiers=[NSMutableArray new];
+    for(id value in indexes) {
+        if(![value isKindOfClass:NSNumber.class])return snapshot;
+        NSInteger index=[value integerValue];
+        if(index<0 || (NSUInteger)index>=sections.count || [removed containsIndex:index])return snapshot;
+        [removed addIndex:index];[identifiers addObject:sections[index]];
+    }
+    id copy=[snapshot copy];if(copy==snapshot)return snapshot;
+    ((void(*)(id,SEL,id))objc_msgSend)(copy,@selector(deleteSectionsWithIdentifiers:),identifiers);
+    NSMutableArray *expected=[sections mutableCopy];[expected removeObjectsAtIndexes:removed];
+    NSArray *remaining=((id(*)(id,SEL))objc_msgSend)(copy,@selector(sectionIdentifiers));
+    if(![remaining isEqualToArray:expected])return snapshot;
+    event(@"ads.friendSections.filtered");return copy;
+}
+static void ginppaiInstallFriendAdvertisingOnly(void) {
+    if(!kcAppearanceOnlyBuild || !option(@"hideAds"))return;
+    Class source=NSClassFromString(@"__UIDiffableDataSource");
+    SEL apply=NSSelectorFromString(@"_applyDifferencesFromSnapshot:animatingDifferences:completion:isOnApplyQueue:");
+    Method method=class_getInstanceMethod(source,apply);
+    if(!ginppaiFriendApplySignature(method))return;
+    IMP original=method_getImplementation(method);
+    replace(source,apply,imp_implementationWithBlock(^(id self,id snapshot,BOOL animated,id completion,BOOL onQueue){
+        ((void(*)(id,SEL,id,BOOL,id,BOOL))original)(self,apply,ginppaiAppearanceAdvertisingSnapshot(snapshot),animated,completion,onQueue);
+    }),method_getTypeEncoding(method));
+}
 static void ginppaiInstallFriendList(void) {
     ginppaiCapabilities[@"hideFriendFeed"]=@NO;
     ginppaiCapabilities[@"hideSpecialFriendPromo"]=@NO;

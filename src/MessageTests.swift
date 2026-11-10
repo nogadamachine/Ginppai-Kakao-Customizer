@@ -146,6 +146,13 @@ enum TestMessageKind: Int32 { case text = 1, removed = 26 }
         check(KCLayoutPolicy.specialFriendSectionIndex([(sectionType, "specialFriend"), ("Other.SectionType", "friend")]) == nil, "Mixed or foreign section models are not filtered")
         check(KCLayoutPolicy.specialFriendSectionIndex(sections(["specialFriend", "futureSection"])) == 0, "New non-promotion sections remain untouched")
         check(KCLayoutPolicy.specialFriendSectionIndex([]) == nil && KCLayoutPolicy.specialFriendSectionIndex(sections(Array(repeating: "friend", count: 33))) == nil, "Empty and oversized section sets are preserved")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes(sections(["bizboard", "favoriteFriend", "friend"])) == [0], "Remove only the verified banner section, retaining favorite and ordinary friends")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes(sections(["specialFriend", "friend", "bizboard"])) == [0,2], "Remove both advertising roles regardless of order")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes(sections(["birthdayFriend", "friend", "kanana", "eventBanner"])) == [], "Preserve non-advertising and unverified section roles")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes(sections(["bizboard"])) == [0], "An advertising-only snapshot may become empty")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes(sections(["bizboard", "bizboard"])) == nil, "Ambiguous duplicate advertising roles are unchanged")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes([("Other.SectionType", "bizboard")]) == nil, "Foreign enum types with advertising-like names are unchanged")
+        check(KCLayoutPolicy.advertisingFriendSectionIndexes(sections([])) == nil && KCLayoutPolicy.advertisingFriendSectionIndexes(sections(Array(repeating: "friend", count: 33))) == nil, "Invalid advertising section counts fail closed")
         let chipType="FriendsFeedPresentation.FriendsTabHeaderView.(unknown context at $1234).ChipItem"
         check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"list")==0, "Identify the native friend list without translated labels")
         check(KCLayoutPolicy.friendChipRole(typeName:chipType,caseName:"feed")==1, "Identify the native feed role")

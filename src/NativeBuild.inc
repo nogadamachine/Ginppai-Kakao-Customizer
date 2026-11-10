@@ -1,8 +1,10 @@
-// Exact build profiles. Addresses are unslid and independently checked against
-// exports, native instructions, Swift vtables and the on-device capability probes.
+// Exact build identities. Only the two native profiles receive the existing
+// verified address mappings; the appearance-only profile keeps them unavailable.
 #import <mach-o/loader.h>
+#include "NativeBuildProfile.h"
 static NSUInteger kcNativeProfile;
-static BOOL kcSelectNativeBuild(void) {
+static BOOL kcAppearanceOnlyBuild;
+static BOOL kcSelectBuild(void) {
     NSString *version=[NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     for(uint32_t i=0;i<_dyld_image_count();i++) {
         const char *name=_dyld_get_image_name(i);
@@ -14,12 +16,10 @@ static BOOL kcSelectNativeBuild(void) {
             const struct load_command *c=(const void *)cursor;
             if(c->cmdsize<sizeof(*c) || cursor+c->cmdsize>end)return NO;
             if(c->cmd==LC_UUID && c->cmdsize>=sizeof(struct uuid_command)) {
-                const uint8_t oldID[]={0xfa,0xab,0x71,0xb6,0x29,0x25,0x3d,0x3e,0x81,0x7f,0xc6,0x61,0x42,0xb3,0x77,0x78};
-                const uint8_t newID[]={0xf4,0xb1,0x11,0xb1,0x95,0x83,0x3b,0xb9,0x98,0x1b,0xbf,0x70,0x2c,0x6b,0x93,0xe3};
-                const uint8_t *uuid=((const struct uuid_command *)c)->uuid;
-                if([version isEqualToString:@"26.7.3"] && memcmp(uuid,oldID,16)==0)kcNativeProfile=1;
-                if([version isEqualToString:@"26.8.0"] && memcmp(uuid,newID,16)==0)kcNativeProfile=2;
-                return kcNativeProfile!=0;
+                KCBuildProfile profile=KCProfileForBuild(version.UTF8String,((const struct uuid_command *)c)->uuid);
+                kcAppearanceOnlyBuild=profile==KCBuildAdsShopping2692;
+                kcNativeProfile=(profile==KCBuildNative2673 || profile==KCBuildNative2680)?profile:0;
+                return profile!=KCBuildUnsupported;
             }
             cursor+=c->cmdsize;
         }

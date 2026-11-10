@@ -7,6 +7,9 @@ import tempfile
 root=Path(__file__).resolve().parent
 subprocess.run([sys.executable,str(root/'tools/test_tools.py')],check=True)
 with tempfile.TemporaryDirectory(prefix='ginppai-test-') as temp:
+    native=Path(temp)/'native-build-tests'
+    subprocess.run(['xcrun','clang','-std=c11','-Wall','-Wextra','-Werror',str(root/'src/NativeBuildTests.c'),'-o',str(native)],check=True)
+    subprocess.run([str(native)],check=True)
     binary=Path(temp)/'resolver-tests'
     # The fixture types intentionally use KakaoTalk's real Swift module name.
     subprocess.run(['xcrun','swiftc','-module-name','Profile',str(root/'src/MediaResolver.swift'),
