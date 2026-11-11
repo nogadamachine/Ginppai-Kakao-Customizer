@@ -146,7 +146,10 @@ static void ginppaiInstallFriendAdvertisingOnly(void) {
     IMP original=method_getImplementation(method);
     replace(source,apply,imp_implementationWithBlock(^(id self,id snapshot,BOOL animated,id completion,BOOL onQueue){
         id filtered=KCNavigationFilterFriendChannels(self,ginppaiAppearanceAdvertisingSnapshot(snapshot));
-        filtered=KCNavigationFilterAdvertisingSnapshot(filtered);
+        id cleaned=KCNavigationFilterAdvertisingSnapshot(filtered);
+        // Removing an advertisement row must not be visible as a collapse animation.
+        if(cleaned!=filtered)animated=NO;
+        filtered=cleaned;
         ((void(*)(id,SEL,id,BOOL,id,BOOL))original)(self,apply,filtered,animated,completion,onQueue);
     }),method_getTypeEncoding(method));
 }

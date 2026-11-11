@@ -8,6 +8,8 @@ static __weak id KCChannelCoordinator;
 static UIViewController *KCQuietController;
 static BOOL KCQuietModelReady;
 static BOOL KCPrepareQuietController(void);
+static void KCNormalizePaneScroll(UIViewController *pane);
+static UIScrollView *KCPaneScrollView(UIViewController *pane);
 static const char KCNormalNativePredicateKey,KCNormalQuietPredicateKey;
 typedef struct KCChannelRouteScope {
     __unsafe_unretained UINavigationController *origin;
@@ -283,6 +285,20 @@ static UIView *KCFindNamedView(UIView *root,NSString *name,NSUInteger depth) {
     if(!root || depth>18)return nil;if([NSStringFromClass(root.class) isEqualToString:name])return root;
     for(UIView *child in root.subviews){UIView *found=KCFindNamedView(child,name,depth+1);if(found)return found;}return nil;
 }
+// The coordinator is normally captured when the Chats tab loads. When the app
+// starts on another tab that never happens, so resolve it from the same tab bar
+// (loading the native Chats controller, as selecting that tab would).
+static void KCResolveChannelCoordinator(UIViewController *anchor) {
+    if(KCChannelCoordinator || !NSThread.isMainThread)return;
+    UITabBarController *main=anchor.tabBarController;
+    for(UIViewController *root in main.viewControllers) {
+        UIViewController *chats=KCFindController(root,@"KakaoTalk.ChatsViewController",0);
+        if(!chats)continue;
+        if(!chats.isViewLoaded)[chats loadViewIfNeeded];
+        if(!KCChannelCoordinator)KCChannelCoordinator=KCNALField(chats,@"contentCoordinator");
+        if(KCChannelCoordinator){event(@"navigation.coordinator.resolved");return;}
+    }
+}
 static BOOL KCPrepareQuietController(void) {
     if(KCQuietController) {
         id frc=KCNALField(KCQuietController,@"fetchedResultsController");
@@ -312,14 +328,32 @@ static BOOL KCPrepareQuietController(void) {
 @property(nonatomic,strong) NSTimer *timer;
 @property(nonatomic) NSInteger selectedKind;
 @property(nonatomic) BOOL creationFailed;
+@property(nonatomic) BOOL navigationBarKnown;
+@property(nonatomic) BOOL navigationBarHidden;
+- (void)enforceNavigationBar;
 - (BOOL)prepareChannels;
 - (void)select:(KCNavigationChipSelector *)sender;
 - (void)refresh;
 @end
 @implementation KCChannelTabState
 - (void)dealloc {[_timer invalidate];}
+- (void)enforceNavigationBar {
+    UIViewController *host=self.host;UINavigationController *nav=host.navigationController;
+    if(!nav || !host.isViewLoaded || !host.view.window || nav.transitionCoordinator || nav.presentedViewController)return;
+    // Only the tab root is normalized; a pushed chat owns its own bar state.
+    if(nav.topViewController.view==nil || ![host.view isDescendantOfView:nav.topViewController.view])return;
+    if(!self.navigationBarKnown){
+        // Captured while the native Open pane is current (before any pane is mounted).
+        if(self.selectedKind!=0 || self.channels.parentViewController || self.quiet.parentViewController)return;
+        self.navigationBarHidden=nav.isNavigationBarHidden;self.navigationBarKnown=YES;return;
+    }
+    if(nav.isNavigationBarHidden!=self.navigationBarHidden) {
+        [nav setNavigationBarHidden:self.navigationBarHidden animated:NO];event(@"navigation.now.nav-bar-restored");
+    }
+}
 - (BOOL)prepareChannels {
     if(self.channels)return YES;
+    KCResolveChannelCoordinator(self.host);
     if(self.creationFailed || !self.host.view.window || !KCChannelCoordinator)return NO;
     Class bridge=NSClassFromString(@"KCChannelNavigationBridge");SEL ready=NSSelectorFromString(@"canBuildChannelChatsFromCoordinator:");
     if(!KCNALSignature(class_getClassMethod(bridge,ready),@encode(BOOL),1) || !((BOOL(*)(id,SEL,id))objc_msgSend)(bridge,ready,KCChannelCoordinator))return NO;
@@ -336,6 +370,7 @@ static BOOL KCPrepareQuietController(void) {
 - (void)select:(KCNavigationChipSelector *)sender {
     NSInteger selected=sender.selectedSegmentIndex;
     if(selected==1 && ![self prepareChannels]){sender.selectedSegmentIndex=self.selectedKind;return;}
+    KCResolveChannelCoordinator(self.host);
     if(selected==2 && !KCPrepareQuietController()){sender.selectedSegmentIndex=self.selectedKind;return;}
     self.quiet=KCQuietController;self.selectedKind=selected;
     NSArray *panes=@[self.channels?:NSNull.null,self.quiet?:NSNull.null];
@@ -351,10 +386,18 @@ static BOOL KCPrepareQuietController(void) {
         pane.view.hidden=!active;pane.view.accessibilityElementsHidden=!active;
     }
     self.openController.view.hidden=selected!=0;self.openController.view.accessibilityElementsHidden=selected!=0;
-    [self refresh];event(selected==1?@"navigation.channels.selected":(selected==2?@"navigation.quiet.selected":@"navigation.openchat.selected"));
+    [self refresh];
+    // Native pane lifecycle (viewWillAppear/viewDidAppear) may re-show the bar.
+    for(NSNumber *delay in @[@0.0,@0.3,@1.0,@2.5]) {
+        __weak KCChannelTabState *weakSelf=self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(delay.doubleValue*NSEC_PER_SEC)),dispatch_get_main_queue(),^{[weakSelf enforceNavigationBar];[weakSelf refresh];});
+    }
+    event(selected==1?@"navigation.channels.selected":(selected==2?@"navigation.quiet.selected":@"navigation.openchat.selected"));
 }
 - (void)refresh {
     UIViewController *host=self.host;if(!host.isViewLoaded || !host.view.window)return;
+    KCResolveChannelCoordinator(host);
+    [self enforceNavigationBar];
     [self prepareChannels];
     if(KCPrepareQuietController())self.quiet=KCQuietController;
     UIView *header=self.nativeHeader;
@@ -366,6 +409,7 @@ static BOOL KCPrepareQuietController(void) {
         CGRect frame=[host.view convertRect:self.openController.view.bounds fromView:self.openController.view];
         CGFloat top=CGRectGetMaxY(self.selector.frame);CGFloat bottom=CGRectGetMaxY(frame);
         pane.view.frame=CGRectMake(frame.origin.x,top,frame.size.width,MAX(0,bottom-top));
+        KCNormalizePaneScroll(pane);
         [host.view bringSubviewToFront:self.selector];
     }
     Class bridge=NSClassFromString(@"KCChannelNavigationBridge");SEL s=NSSelectorFromString(@"presentationUnread:");
@@ -398,6 +442,51 @@ static void KCUpdateChannelTabs(UIViewController *host) {
     state.timer=[NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(NSTimer *timer){KCChannelTabState *current=weak;if(current)[current refresh];else[timer invalidate];}];
     [state refresh];event(@"navigation.open-channel.header");
 }
+static const char KCNowCoverKey;
+// Native Now resets to ShortForm/Brand before the Open Chat selection lands.
+// A plain background cover hides only that transient frame; it never edits
+// native content and is always released (state change or a short timeout).
+static void KCNowSetCover(UIViewController *controller,BOOL covered) {
+    UIView *cover=objc_getAssociatedObject(controller,&KCNowCoverKey);
+    if(!covered) {
+        if(cover){[cover removeFromSuperview];objc_setAssociatedObject(controller,&KCNowCoverKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);}
+        return;
+    }
+    if(!controller.isViewLoaded)return;
+    if(cover.superview==controller.view){[controller.view bringSubviewToFront:cover];return;}
+    cover=[[UIView alloc] initWithFrame:controller.view.bounds];
+    cover.autoresizingMask=UIViewAutoresizingFlexibleWidth|UIViewAutoresizingFlexibleHeight;
+    cover.backgroundColor=controller.view.backgroundColor?:UIColor.systemBackgroundColor;
+    cover.userInteractionEnabled=NO;cover.accessibilityElementsHidden=YES;
+    [controller.view addSubview:cover];
+    objc_setAssociatedObject(controller,&KCNowCoverKey,cover,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    __weak UIViewController *weak=controller;__weak UIView *weakCover=cover;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(1.2*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+        UIViewController *current=weak;UIView *view=weakCover;
+        if(current && view && objc_getAssociatedObject(current,&KCNowCoverKey)==view)KCNowSetCover(current,NO);
+    });
+}
+// The pane is placed manually below the selector, so it must not receive a
+// second top reservation (automatic safe-area or a native header inset meant
+// for the ChatFolder layout). Re-asserting it keeps repeated switches stable.
+static UIScrollView *KCPaneScrollView(UIViewController *pane) {
+    if([pane.view isKindOfClass:UIScrollView.class])return (UIScrollView *)pane.view;
+    NSMutableArray<UICollectionView *> *found=[NSMutableArray new];KCNALFindCollections(pane.view,found,0);
+    return found.count==1?found.firstObject:nil;
+}
+static void KCNormalizePaneScroll(UIViewController *pane) {
+    UIScrollView *scroll=KCPaneScrollView(pane);if(!scroll)return;
+    if(scroll.contentInsetAdjustmentBehavior!=UIScrollViewContentInsetAdjustmentNever)
+        scroll.contentInsetAdjustmentBehavior=UIScrollViewContentInsetAdjustmentNever;
+    UIEdgeInsets inset=scroll.contentInset;CGFloat bottom=MAX(0,scroll.safeAreaInsets.bottom);
+    if(inset.top!=0 || fabs(inset.bottom-bottom)>0.5) {
+        BOOL atTop=scroll.contentOffset.y<=-inset.top+0.5;
+        inset.top=0;inset.bottom=bottom;scroll.contentInset=inset;
+        if(atTop)scroll.contentOffset=CGPointMake(scroll.contentOffset.x,0);
+    }
+    UIEdgeInsets indicator=scroll.verticalScrollIndicatorInsets;
+    if(indicator.top!=0){indicator.top=0;scroll.verticalScrollIndicatorInsets=indicator;}
+}
 static void KCInstallChannelTabs(void) {
     Class host=NSClassFromString(@"KakaoTalk.OpenChatsViewController");
     for(NSString *name in @[@"viewDidLayoutSubviews",@"viewDidAppear:"]) {
@@ -424,15 +513,18 @@ static void KCInstallChannelTabs(void) {
         ((void(*)(id,SEL,id,id))old)(self,s,collection,path);
     }),method_getTypeEncoding(m));
     Class container=NSClassFromString(@"KakaoTalk.NowTabContainerViewController");
-    for(NSString *name in @[@"viewDidAppear:",@"viewDidLayoutSubviews"]) {
+    for(NSString *name in @[@"viewWillAppear:",@"viewDidAppear:",@"viewDidLayoutSubviews"]) {
         SEL lifecycle=NSSelectorFromString(name);Method method=class_getInstanceMethod(container,lifecycle);
         BOOL hasArgument=[name hasSuffix:@":"];
         if(hasArgument?!KCNALBoolLifecycle(method):!KCNALSignature(method,"v",0))continue;
         IMP original=method_getImplementation(method);
         void (^normalize)(UIViewController *)=^(UIViewController *self){
-            if(!self.isViewLoaded || !self.view.window || objc_getAssociatedObject(self,&KCNowNormalizePendingKey))return;
+            if(!self.isViewLoaded)return;
             Class bridge=NSClassFromString(@"KCChannelNavigationBridge");
             NSInteger role=((NSInteger(*)(id,SEL,id))objc_msgSend)(bridge,NSSelectorFromString(@"nowCurrentRole:"),self);
+            // Cover the transient ShortForm/Brand frame until Open Chat is current.
+            KCNowSetCover(self,role==0);
+            if(!self.view.window || objc_getAssociatedObject(self,&KCNowNormalizePendingKey))return;
             if(role!=0)return;
             objc_setAssociatedObject(self,&KCNowNormalizePendingKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             __weak UIViewController *weak=self;
@@ -441,13 +533,47 @@ static void KCInstallChannelTabs(void) {
                 if(!current.isViewLoaded || !current.view.window)return;
                 UIView *header=KCFindNamedView(current.view,@"TalkAppBase.NowTabHeaderChipSelectionView",0);
                 if(header){selectOpenChat(header);hideBrandChip(header);event(@"navigation.now.native-open-requested");}
+                // Release the cover once the native selection has been applied.
+                __weak UIViewController *again=current;
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.12*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+                    UIViewController *resolved=again;if(!resolved)return;
+                    NSInteger now=((NSInteger(*)(id,SEL,id))objc_msgSend)(bridge,NSSelectorFromString(@"nowCurrentRole:"),resolved);
+                    if(now!=0)KCNowSetCover(resolved,NO);
+                });
             });
         };
         IMP replacement=hasArgument?imp_implementationWithBlock(^(UIViewController *self,BOOL animated){((void(*)(id,SEL,BOOL))original)(self,lifecycle,animated);normalize(self);}):imp_implementationWithBlock(^(UIViewController *self){((void(*)(id,SEL))original)(self,lifecycle);normalize(self);});
         replace(container,lifecycle,replacement,method_getTypeEncoding(method));
     }
 }
+static const char KCNowRetapKey;
+// Re-selecting the already selected tab makes the native app switch or reset
+// its inner tab. Consume only that gesture on every tab; navigating into a tab
+// from another one keeps its native behavior.
+static void KCInstallNowRetapBlock(void) {
+    Class bar=NSClassFromString(@"KakaoTalk.MainTabBarView");
+    for(NSString *name in @[@"handleButtonTouchDown:",@"handleButtonTouchUpInside:"]) {
+        SEL selector=NSSelectorFromString(name);Method method=class_getInstanceMethod(bar,selector);
+        if(!KCNALSignature(method,"v",1))continue;
+        IMP old=method_getImplementation(method);BOOL down=[name hasSuffix:@"Down:"];
+        replace(bar,selector,imp_implementationWithBlock(^(UIView *view,UIControl *button){
+            UITabBarController *main=mainController(view);
+            BOOL nowSelected=main && [button isKindOfClass:UIControl.class] && [NSStringFromClass(button.class) isEqualToString:@"KakaoTalk.MainTabBarButton"] &&
+                button.selected && tabButtonIndex(view,button,main)==main.selectedIndex;
+            if(down) {
+                // Remember a retap only if Now was already selected before this touch.
+                objc_setAssociatedObject(view,&KCNowRetapKey,nowSelected?button:nil,OBJC_ASSOCIATION_ASSIGN);
+                if(nowSelected){event(@"navigation.tab.retap-ignored");return;}
+            } else {
+                BOOL retap=objc_getAssociatedObject(view,&KCNowRetapKey)==button;
+                objc_setAssociatedObject(view,&KCNowRetapKey,nil,OBJC_ASSOCIATION_ASSIGN);
+                if(retap && nowSelected)return;
+            }
+            ((void(*)(id,SEL,id))old)(view,selector,button);
+        }),method_getTypeEncoding(method));
+    }
+}
 static void KCInstallChannelNavigation(void) {
     if(!kcAppearanceOnlyBuild)return;
-    KCInstallNormalPartition();KCInstallBadgePartition();KCInstallChannelPushRouting();KCInstallChannelTabs();KCInstallMoreHomeOnly();
+    KCInstallNormalPartition();KCInstallBadgePartition();KCInstallChannelPushRouting();KCInstallChannelTabs();KCInstallNowRetapBlock();KCInstallMoreHomeOnly();
 }

@@ -82,6 +82,7 @@ static id KCNavigationFilterAdvertisingSnapshot(id snapshot) {
     }
 }
 
+static const char KCNALMorePaddingPendingKey;
 static const char KCNALMoreChromeStateKey, KCNALMorePendingKey, KCNALMoreAttemptKey, KCNALMorePaddingStateKey, KCNALMorePaddingUpdatingKey, KCNALMorePaddingFailuresKey;
 static id KCNALField(id object, NSString *field) {
     if(!object || !field)return nil;
@@ -213,24 +214,40 @@ static void KCNALRestoreMorePadding(UIViewController *controller) {
     objc_setAssociatedObject(controller,&KCNALMorePaddingStateKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
     objc_setAssociatedObject(controller,&KCNALMorePaddingUpdatingKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
+static CGFloat KCNALCollapsedChipHeight(UIViewController *controller) {
+    UIView *chip=KCNALMoreChip(controller);
+    NSDictionary *state=chip?objc_getAssociatedObject(chip,&KCNALMoreChromeStateKey):nil;
+    for(NSLayoutConstraint *constraint in state[@"heights"])
+        if(KCNALConstantChipHeight(constraint,chip))return constraint.constant;
+    return 0;
+}
 static void KCNALUpdateMorePadding(UIViewController *controller) {
     if(objc_getAssociatedObject(controller,&KCNALMorePaddingUpdatingKey) || !KCNALVisibleMore(controller) || KCNALMoreRole(controller)!=1)return;
-    CGFloat expected=controller.view.safeAreaInsets.top+106,target=controller.view.safeAreaInsets.top+56;
-    if(!isfinite(expected) || !isfinite(target) || expected>256 || target<56)return;
     NSDictionary *current=KCMHPState(controller);id context=current[@"context"];NSNumber *value=current[@"padding"];
     NSLayoutConstraint *constraint=KCNALField(controller,@"hidingTitleViewHeightConstraint");UIView *hiding=KCNALField(controller,@"hidingTitleView");
     if(!context || !value || !isfinite(value.doubleValue) || !KCNALNativeTitleHeight(constraint,hiding) || ![hiding isDescendantOfView:controller.view])return;
     NSDictionary *prior=objc_getAssociatedObject(controller,&KCNALMorePaddingStateKey);
-    if(prior && (prior[@"context"]!=context || prior[@"constraint"]!=constraint || prior[@"hiding"]!=hiding || fabs([prior[@"target"] doubleValue]-target)>=0.5)) {
+    // The reserved height is measured from the native selector that was just
+    // collapsed (observed 50 pt) instead of assuming a safe-area formula, which
+    // silently left the blank gap whenever the native inset differed.
+    CGFloat removed=KCNALCollapsedChipHeight(controller);
+    CGFloat expected=prior?[prior[@"native"] doubleValue]:value.doubleValue,target=prior?[prior[@"target"] doubleValue]:expected-removed;
+    if(!prior && fabs(removed-50)>=0.5)return;
+    if(!isfinite(expected) || !isfinite(target) || expected>256 || target<56)return;
+    if(prior && (prior[@"context"]!=context || prior[@"constraint"]!=constraint || prior[@"hiding"]!=hiding)) {
         KCNALRestoreMorePadding(controller);return;
     }
-    // A completed change is never subtracted again. Native changes with another
-    // formula are left intact; only the verified 106 -> 56 reservation is used.
+    // A completed change is never subtracted again. Only a native reservation
+    // that matches its own title-height constraint is reduced by the chip height.
     BOOL paddingAtTarget=fabs(value.doubleValue-target)<0.5,heightAtTarget=fabs(constraint.constant-target)<0.5;
     if(paddingAtTarget && heightAtTarget)return;
     BOOL paddingAtNative=fabs(value.doubleValue-expected)<0.5,heightAtNative=fabs(constraint.constant-expected)<0.5;
     if(!prior && (!paddingAtNative || !heightAtNative))return;
-    if(prior && ((!paddingAtNative && !paddingAtTarget) || (!heightAtNative && !heightAtTarget)))return;
+    if(prior && ((!paddingAtNative && !paddingAtTarget) || (!heightAtNative && !heightAtTarget))) {
+        // Native layout changed (rotation, safe area): drop our state so the
+        // next pass measures the new reservation instead of reusing stale numbers.
+        KCNALRestoreMorePadding(controller);return;
+    }
     if(prior && paddingAtTarget && heightAtNative){constraint.constant=target;return;}
     NSUInteger failures=[objc_getAssociatedObject(controller,&KCNALMorePaddingFailuresKey) unsignedIntegerValue];
     if(failures>=2)return;
@@ -266,7 +283,21 @@ static void KCNALUpdateMoreHome(UIViewController *controller) {
     if(!kcAppearanceOnlyBuild || !KCNALVisibleMore(controller))return;
     UIView *chip=KCNALMoreChip(controller);if(!chip || !chip.window)return;
     NSInteger role=KCNALMoreRole(controller);
-    if(role==1){KCNALCollapseMoreChip(chip);KCNALUpdateMorePadding(controller);return;}
+    if(role==1) {
+        KCNALCollapseMoreChip(chip);
+        // Changing the observed padding inside a layout pass is not picked up by
+        // SwiftUI; apply it from a clean run-loop turn (one pending pass at most).
+        if(!objc_getAssociatedObject(controller,&KCNALMorePaddingPendingKey)) {
+            objc_setAssociatedObject(controller,&KCNALMorePaddingPendingKey,@YES,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            __weak UIViewController *weak=controller;
+            dispatch_async(dispatch_get_main_queue(),^{
+                UIViewController *c=weak;if(!c)return;
+                objc_setAssociatedObject(c,&KCNALMorePaddingPendingKey,nil,OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+                KCNALUpdateMorePadding(c);
+            });
+        }
+        return;
+    }
     KCNALRestoreMoreHome(controller);
     if(role!=0 || objc_getAssociatedObject(controller,&KCNALMorePendingKey) || objc_getAssociatedObject(controller,&KCNALMoreAttemptKey))return;
     NSMutableArray<UICollectionView *> *collections=[NSMutableArray new];KCNALFindCollections(chip,collections,0);
