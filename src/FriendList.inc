@@ -145,7 +145,9 @@ static void ginppaiInstallFriendAdvertisingOnly(void) {
     if(!ginppaiFriendApplySignature(method))return;
     IMP original=method_getImplementation(method);
     replace(source,apply,imp_implementationWithBlock(^(id self,id snapshot,BOOL animated,id completion,BOOL onQueue){
-        ((void(*)(id,SEL,id,BOOL,id,BOOL))original)(self,apply,ginppaiAppearanceAdvertisingSnapshot(snapshot),animated,completion,onQueue);
+        id filtered=KCNavigationFilterFriendChannels(self,ginppaiAppearanceAdvertisingSnapshot(snapshot));
+        filtered=KCNavigationFilterAdvertisingSnapshot(filtered);
+        ((void(*)(id,SEL,id,BOOL,id,BOOL))original)(self,apply,filtered,animated,completion,onQueue);
     }),method_getTypeEncoding(method));
 }
 static void ginppaiInstallFriendList(void) {

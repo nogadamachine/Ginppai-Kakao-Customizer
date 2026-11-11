@@ -4,7 +4,7 @@
 
 **3.1.0** / KakaoTalk **26.7.3, 26.8.0** / iOS 17 이상
 
-이 브랜치는 카카오톡 **26.9.2의 지정 실행 파일에 한해 광고·프로모션 영역과 쇼핑 탭을 처리하는 실험적 경로**를 추가합니다. 메시지·읽음·국가 변경 등 기존 네이티브 기능은 이 버전에서 활성화하지 않습니다. 설치 범위와 실제 검증 상태는 [26.9.2 광고·쇼핑 안내](docs/kakao-26.9.2-appearance.md)를 확인하세요.
+카카오톡 **26.9.2의 지정 실행 파일**에서는 광고·프로모션·쇼핑 숨김에 더해 친구/채널 분리, 오픈채팅·채널채팅·조용한 채팅 전환, 더보기 홈 정리를 위한 별도 실험적 화면 프로필을 사용합니다. 메시지 변조·읽음 변경·국가 패치 등 기존 전체 네이티브 기능은 이 버전에서 활성화하지 않습니다. 설치·복구 경계는 [26.9.2 광고·쇼핑 안내](docs/kakao-26.9.2-appearance.md), 새 화면의 구현 범위와 검증 상태는 [채널·탭 정리 안내](docs/kakao-26.9.2-channel-navigation.md)를 확인하세요.
 
 [다운로드](https://github.com/nogadamachine/Ginppai-Kakao-Customizer/releases/latest) / [설치 안내](docs/INSTALL.md) / [긴빠이 Repo](https://nogadamachine.github.io/Ginppai-Repo/)
 

@@ -29,3 +29,7 @@ with tempfile.TemporaryDirectory(prefix='ginppai-test-') as temp:
     subprocess.run(['xcrun','swiftc',str(root/'src/MoreTabRendering.swift'),
                     str(root/'src/MoreRenderingTests.swift'),'-o',str(rendering)],check=True)
     subprocess.run([str(rendering)],check=True)
+    navigation=Path(temp)/'channel-navigation-tests'
+    subprocess.run(['xcrun','swiftc',str(root/'src/NavigationAdPolicy.swift'),str(root/'src/ChannelNavigation.swift'),
+                    str(root/'src/ChannelNavigationTests.swift'),'-o',str(navigation)],check=True)
+    subprocess.run([str(navigation)],check=True)

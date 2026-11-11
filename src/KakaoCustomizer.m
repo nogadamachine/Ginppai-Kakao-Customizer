@@ -218,7 +218,7 @@ static void installSettingsEntry(void) {
     replace(cls,sel,imp_implementationWithBlock(^(UIViewController *vc,BOOL animated){((void (*)(id,SEL,BOOL))original)(vc,sel,animated);addSettingsEntry(vc);}),method_getTypeEncoding(method));
 }
 static NSDictionary *configurationReport(void) {
-    return @{@"mode":kcAppearanceOnlyBuild?@"ads-shopping-only":@"full",@"nativeProfile":@(kcNativeProfile),@"active":activeOptions?:@{},@"countrySwitchAvailable":@(countrySupport),@"navigation":navigationReport?:@{},@"countryCount":@(NSLocale.ISOCountryCodes.count)};
+    return @{@"mode":kcAppearanceOnlyBuild?@"appearance-navigation":@"full",@"nativeProfile":@(kcNativeProfile),@"active":activeOptions?:@{},@"countrySwitchAvailable":@(countrySupport),@"navigation":navigationReport?:@{},@"countryCount":@(NSLocale.ISOCountryCodes.count)};
 }
 
 
@@ -1075,7 +1075,13 @@ static void installProfileDownload(void) {
     }
 }
 
+#include "NavigationChipSelector.inc"
+#include "MoreHomePadding.inc"
+#include "NavigationAdLayout.inc"
+static id KCNavigationFilterFriendChannels(id source,id snapshot);
 #include "CustomizationFeatures.inc"
+#include "ChannelChatsLayout.inc"
+#include "ChannelFriendsLayout.inc"
 static NSDictionary *ginppaiReport(void) {return @{@"upstream":@"v1.5.0-dev.9",@"commit":@"70f43985acdb0f9fe49d5cda0b88676583aca2d1",@"capabilities":ginppaiCapabilities?:@{},@"bubbleLayout":ginppaiLayoutDiagnostics?:@{},@"unreadCalculation":ginppaiUnreadProbe?:@{},@"universalCover":ginppaiCoverProbe?:@{}};}
 
 // The 26.9.2 profile deliberately bypasses all fixed-address and message hooks.
@@ -1194,9 +1200,11 @@ __attribute__((constructor)) static void initializeKakaoAdBlock(void) {
             ginppaiCapabilities=[@{@"hideAdsSwiftUI":@([render[@"capabilities"][@"hideAds"] boolValue]),@"hideKakaoNowPromo":@([render[@"capabilities"][@"hideMoreNow"] boolValue])} mutableCopy];
             for(NSString *name in render[@"installed"])[installed addObject:[@"SwiftUI advertisement rendering: " stringByAppendingString:name]];
             ginppaiInstallFriendAdvertisingOnly();
+            KCInstallChannelNavigation();
+            KCInstallChannelFriendsLayout();
             installShoppingOnlyCustomization();
             dispatch_async(dispatch_get_main_queue(), ^{ saveReport(); });
-            NSLog(@"[Ginppai-Kakao-Customizer] %@ loaded in ads/shopping-only mode", @KC_VERSION);
+            NSLog(@"[Ginppai-Kakao-Customizer] %@ loaded in appearance-navigation mode", @KC_VERSION);
             return;
         }
         installTabCustomization();
